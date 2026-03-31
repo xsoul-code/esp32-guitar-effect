@@ -9,11 +9,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
-#define TAG "WiFi Handler"
-#define MAX_RETRY 5
+#define TAG "SGE: WiFi Handler"
 
-#define WIFI_PASS "password"
-#define WIFI_SSID "ssid"
+#define WIFI_SSID CONFIG_ESP_WIFI_SSID
+#define WIFI_PASS CONFIG_ESP_WIFI_PASSWORD
+#define MAX_RETRY CONFIG_ESP_MAXIMUM_RETRY
 
 static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
@@ -98,11 +98,11 @@ void wifi_init_sta(void)
     /* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
      * happened. */
     if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-                 WIFI_SSID, WIFI_PASS);
+        ESP_LOGI(TAG, "connected to ap SSID:%s",
+                 WIFI_SSID);
     } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-                 WIFI_SSID, WIFI_PASS);
+        ESP_LOGI(TAG, "Failed to connect to SSID:%s",
+                 WIFI_SSID);
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
     }

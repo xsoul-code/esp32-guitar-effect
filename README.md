@@ -10,7 +10,17 @@ Part of a dual-MCU system:
 
 ## Building
 
-Requires ESP-IDF. Set your WiFi credentials in `main/wifi.c` and broker IP in `main/include/mqtt.h`, then:
+Requires ESP-IDF.
+
+ Set your WiFi credentials in `menuconfig` 
+
+```
+idf.py menuconfig
+```
+
+and broker IP in `main/include/mqtt.h`, 
+
+then:
 
 ```
 idf.py build
@@ -21,4 +31,5 @@ idf.py flash monitor
 Used doucmentation in implementation process:
 
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/index.html)
+- [ESP-IDF Examples on GitHub](https://github.com/espressif/esp-idf/tree/master)
 - [FreeRTOS Documentation](https://www.freertos.org/Documentation/RTOS_book.html) 
