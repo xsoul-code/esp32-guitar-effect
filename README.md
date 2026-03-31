@@ -12,15 +12,16 @@ Part of a dual-MCU system:
 
 Requires ESP-IDF.
 
- Set your WiFi credentials in `menuconfig` 
+Set your WiFi credentials and OLED display settings in `menuconfig`:
 
 ```
 idf.py menuconfig
 ```
 
-and broker IP in `main/include/mqtt.h`, 
+- **WiFi Configuration** — SSID, password, max retry
+- **SSD1306 Configuration** — I2C interface, SDA/SCL pins, panel type, X offset (2 for SH1106)
 
-then:
+Set broker IP in `main/include/mqtt.h`, then:
 
 ```
 idf.py build
@@ -32,4 +33,5 @@ Used doucmentation in implementation process:
 
 - [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/index.html)
 - [ESP-IDF Examples on GitHub](https://github.com/espressif/esp-idf/tree/master)
-- [FreeRTOS Documentation](https://www.freertos.org/Documentation/RTOS_book.html) 
+- [FreeRTOS Documentation](https://www.freertos.org/Documentation/RTOS_book.html)
+- [esp-idf-ssd1306](https://github.com/nopnop2002/esp-idf-ssd1306) — SSD1306/SH1106 OLED driver component for ESP-IDF

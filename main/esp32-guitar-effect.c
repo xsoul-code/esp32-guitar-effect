@@ -13,6 +13,8 @@
 #include "driver/uart.h"
 #include "driver/gpio.h"
 
+#include "include/oled.h"
+
 #define UART_RX GPIO_NUM_16              // ESP32 UART2 RX GPIO PIN
 #define UART_TX GPIO_NUM_17             // ESP32 UART2 TX GPIO PIN
 #define UART_BAUD_RATE 115200
@@ -63,7 +65,17 @@ void UART_RX_task(void *pvParameters)
 
 void ui_task(void *pvParameters)
 {
-    while(1) { vTaskDelay(pdMS_TO_TICKS(1000)); }
+    ssd1306_display_text(&dev, 0, "Smart Guitar FX", 15, false);
+    
+    int counter = 0;
+    char buf[22];
+    while(1)
+    {
+        snprintf(buf, sizeof(buf), "uptime: %ds", counter++);
+        ssd1306_display_text(&dev, 2, "                ", 16, false); // czysc linie
+        ssd1306_display_text(&dev, 2, buf, strlen(buf), false);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }
 
 void footswitch_task(void *pvParameters)
@@ -88,6 +100,8 @@ void app_main(void)
     ESP_LOGI(TAG, "WiFi MODE STA (station)");
     wifi_init_sta();
     
+    oled_init();
+
     // Queues section
     buffer1 = xQueueCreate(2, sizeof(stm32samples));
 
@@ -96,9 +110,10 @@ void app_main(void)
     xTaskCreate(UART_RX_task, "uart_rx_task", 8192, NULL, 5, NULL);
     xTaskCreate(ui_task, "ui_task", 4096, NULL, 5, NULL);
     xTaskCreate(footswitch_task, "footswitch_task", 2048, NULL, 5, NULL);
+
+    // Successfull initialization loop
     while(1)
     {
-        ESP_LOGI(TAG, " Wandering around...");
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
