@@ -16,3 +16,9 @@ Requires ESP-IDF. Set your WiFi credentials in `main/wifi.c` and broker IP in `m
 idf.py build
 idf.py flash monitor
 ```
+## Documentation references
+
+Used doucmentation in implementation process:
+
+- [ESP-IDF](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/index.html)
+- [FreeRTOS Documentation](https://www.freertos.org/Documentation/RTOS_book.html) 

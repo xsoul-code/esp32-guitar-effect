@@ -1,5 +1,4 @@
 #pragma once
-
 #include "mqtt_client.h"
 
 #define MQTT_BROKER_IP "192.168.x.x"
