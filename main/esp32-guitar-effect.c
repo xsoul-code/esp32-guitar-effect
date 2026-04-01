@@ -16,7 +16,7 @@
 #include "include/oled.h"
 
 #define UART_RX GPIO_NUM_16              // ESP32 UART2 RX GPIO PIN
-#define UART_TX GPIO_NUM_17             // ESP32 UART2 TX GPIO PIN
+#define UART_TX GPIO_NUM_17              // ESP32 UART2 TX GPIO PIN
 #define UART_BAUD_RATE 115200
 
 static const int RX_BUF_SIZE = 1024;   
@@ -58,12 +58,25 @@ void debug_monitor(void *pvParameters)
     }
 }
 
-void UART_RX_task(void *pvParameters)
+void UART_RX_task(void *pvParameters) // source: Github esp-idf/examples/peripherals/uart/uart_async_rxtxtasks/main/uart_async_rxtxtasks_main.c
 {
-    while(1) { vTaskDelay(pdMS_TO_TICKS(1000)); }
+    esp_log_level_set(TAG, ESP_LOG_INFO);
+    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
+    while(1) 
+    {
+        const int rxBytes = uart_read_bytes(UART_NUM_2, data, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
+        if (rxBytes > 0) 
+        {
+            data[rxBytes] = 0;
+            ESP_LOGI(TAG, "Read %d bytes: '%s'", rxBytes, data);
+            ESP_LOG_BUFFER_HEXDUMP(TAG, data, rxBytes, ESP_LOG_INFO);    
+        } 
+        vTaskDelay(pdMS_TO_TICKS(1000)); 
+    }
+    free(data);
 }
 
-void ui_task(void *pvParameters)
+void ui_task(void *pvParameters) 
 {
     ssd1306_display_text(&dev, 0, "Smart Guitar FX", 15, false);
     
