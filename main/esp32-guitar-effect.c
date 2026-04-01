@@ -98,22 +98,36 @@ void footswitch_task(void *pvParameters)
 
 void app_main(void)
 {
-    // UART config section from void function
-    init_UART();
+    // OLED section
+    oled_init();
+    ssd1306_display_text(&dev, 0, "Smart Guitar FX", 15, false);
 
-    // Wifi section
+    // UART config section from void function
+    ssd1306_display_text(&dev, 1, "UART: ...", 9, false);
+    init_UART();
+    ssd1306_display_text(&dev, 1, "UART: OK", 8, false);
+
+    // NVS section
     ESP_LOGI(TAG, "Initializing NVS");
+    ssd1306_display_text(&dev, 2, "NVS:  ...", 9, false);
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
+    ssd1306_display_text(&dev, 2, "NVS:  OK", 8, false);
 
+    // WiFi section
+    ssd1306_display_text(&dev, 3, "WiFi:  ...", 9, false);
     ESP_LOGI(TAG, "WiFi MODE STA (station)");
     wifi_init_sta();
-    
-    oled_init();
+    ssd1306_display_text(&dev, 3, "WiFi: OK", 8, false);
+
+    // POST time
+    vTaskDelay(pdMS_TO_TICKS(5000));
+    ssd1306_clear_screen(&dev, false);
+    // End POST time
 
     // Queues section
     buffer1 = xQueueCreate(2, sizeof(stm32samples));
