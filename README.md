@@ -19,9 +19,10 @@ idf.py menuconfig
 ```
 
 - **WiFi Configuration** — SSID, password, max retry
+- **MQTT Configuration** — broker URI (e.g. `mqtt://192.168.1.100`)
 - **SSD1306 Configuration** — I2C interface, SDA/SCL pins, panel type, X offset (2 for SH1106)
 
-Set broker IP in `main/include/mqtt.h`, then:
+Then:
 
 ```
 idf.py build
@@ -30,11 +31,27 @@ idf.py flash monitor
 
 ## Communication protocols
 
+### UART (ESP32 ↔ STM32)
+
 Successfully implemented UART_RX data acquisition tested using second ESP32 with basic ArduinoIDE (source code in uart_test_arduino directory) script for UART_TX tester.
 
 Output:
 ```
 I (165016) Smart Guitar Effect: 0x3ffcc6e8   48 45 4c 4c 4f 5f 45 53  50 33 32 0d 0a           |HELLO_ESP32..|
+```
+
+### MQTT (Web UI ↔ ESP32)
+
+Client connects to the broker configured in `menuconfig` and handles full lifecycle (connect, subscribe, data, disconnect, error). Topics:
+
+- `pedal/cmd` (RX, QoS 1) — control commands from the web UI
+- `pedal/status` (TX) — pedal publishes `"online"` on connect
+
+Tested locally with Mosquitto:
+
+```
+mosquitto_sub -h localhost -t 'pedal/#' -v
+mosquitto_pub -h localhost -t 'pedal/cmd' -m 'effect:reverb'
 ```
 
 ## Documentation references
