@@ -6,4 +6,6 @@
 #include "esp_netif.h"
 #include "nvs_flash.h"
 
+extern char wifi_status[17];
+
 void wifi_init_sta(void);

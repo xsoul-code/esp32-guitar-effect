@@ -14,10 +14,11 @@
 #include "driver/gpio.h"
 
 #include "include/oled.h"
+#include "include/mqtt.h"
 
 #define UART_RX GPIO_NUM_16              // ESP32 UART2 RX GPIO PIN
 #define UART_TX GPIO_NUM_17              // ESP32 UART2 TX GPIO PIN
-#define UART_BAUD_RATE 115200
+#define UART_BAUD_RATE 115200            // UART MATCH BAUD RATE SETTING
 
 static const int RX_BUF_SIZE = 1024;   
 
@@ -84,9 +85,11 @@ void ui_task(void *pvParameters)
     char buf[22];
     while(1)
     {
+        // Uptime - linia 5
         snprintf(buf, sizeof(buf), "uptime: %ds", counter++);
-        ssd1306_display_text(&dev, 2, "                ", 16, false); // czysc linie
-        ssd1306_display_text(&dev, 2, buf, strlen(buf), false);
+        ssd1306_display_text(&dev, 5, "                ", 16, false);
+        ssd1306_display_text(&dev, 5, buf, strlen(buf), false);
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
@@ -123,6 +126,11 @@ void app_main(void)
     ESP_LOGI(TAG, "WiFi MODE STA (station)");
     wifi_init_sta();
     ssd1306_display_text(&dev, 3, "WiFi: OK", 8, false);
+
+    // MQTT section
+    ssd1306_display_text(&dev, 3, "MQTT: ...", 10, false);
+    mqtt_init();
+    ssd1306_display_text(&dev, 3, "MQTT: OK", 10, false);
 
     // POST time
     vTaskDelay(pdMS_TO_TICKS(5000));

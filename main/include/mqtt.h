@@ -1,8 +1,8 @@
 #pragma once
 #include "mqtt_client.h"
-
-#define MQTT_BROKER_IP "192.168.x.x"
+#include "esp_event_base.h"
 
 extern esp_mqtt_client_handle_t mqtt_client;
+extern char mqtt_status[17];
 
 void mqtt_init(void);

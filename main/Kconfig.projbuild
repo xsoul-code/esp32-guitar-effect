@@ -19,3 +19,13 @@ menu "WiFi Configuration"
             Maximum number of retries to connect to the AP.
 
 endmenu
+
+menu "MQTT Configuration"
+
+    config MQTT_BROKER_URI
+        string "MQTT Broker URI"
+        default "mqtt://192.168.1.100"
+        help
+            Full URI of the MQTT broker (e.g. mqtt://192.168.1.100 or mqtt://broker.local:1883).
+
+endmenu
