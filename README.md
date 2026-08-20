@@ -10,7 +10,15 @@ Part of a dual-MCU system:
 
 ## Building
 
-Requires ESP-IDF.
+Requires ESP-IDF v5.x or v6.x.
+
+The project path must not contain non-ASCII characters (e.g. Polish diacritics) —
+the toolchain mangles such paths and the build fails on a missing `picolibc.specs`.
+
+The `espressif/mqtt` dependency is declared in `main/idf_component.yml` and is
+fetched automatically on first build (ESP-MQTT was moved out of ESP-IDF core in
+v6.0). The SSD1306/SH1106 driver is vendored in `components/ssd1306`, so a plain
+`git clone` is enough no submodule init needed.
 
 Set your WiFi credentials and OLED display settings in `menuconfig`:
 
