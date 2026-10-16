@@ -10,17 +10,10 @@
 #include "nvs_flash.h"
 
 #include "esp_system.h"
-#include "driver/uart.h"
-#include "driver/gpio.h"
 
 #include "include/oled.h"
 #include "include/mqtt.h"
-
-#define UART_RX GPIO_NUM_16              // ESP32 UART2 RX GPIO PIN
-#define UART_TX GPIO_NUM_17              // ESP32 UART2 TX GPIO PIN
-#define UART_BAUD_RATE 115200            // UART MATCH BAUD RATE SETTING
-
-static const int RX_BUF_SIZE = 1024;   
+#include "include/stm32_uart.h"
 
 #define TAG "Smart Guitar Effect"   // FIRMWARE TAG
 
@@ -32,21 +25,6 @@ typedef struct // Data structure representing STM32 UART samples acquired
     int64_t sample;
 }stm32samples; 
 
-void init_UART(void) // UART initializaion (ESP-IDF GitHub see references in README.md)
-{
-    const uart_config_t uart_config = {
-        .baud_rate = UART_BAUD_RATE,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
-    ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, UART_TX, UART_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-    ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, RX_BUF_SIZE * 2, RX_BUF_SIZE, 0, NULL, 0));
-}
-
 void debug_monitor(void *pvParameters)
 {
     stm32samples sample;
@@ -57,24 +35,6 @@ void debug_monitor(void *pvParameters)
             ESP_LOGI(TAG, "STM32 sample captured on: %lu ms with value: %lld", (unsigned long)sample.timestamp, (long long)sample.sample);
         }
     }
-}
-
-void UART_RX_task(void *pvParameters) // source: Github esp-idf/examples/peripherals/uart/uart_async_rxtxtasks/main/uart_async_rxtxtasks_main.c
-{
-    esp_log_level_set(TAG, ESP_LOG_INFO);
-    uint8_t* data = (uint8_t*) malloc(RX_BUF_SIZE + 1);
-    while(1) 
-    {
-        const int rxBytes = uart_read_bytes(UART_NUM_2, data, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
-        if (rxBytes > 0) 
-        {
-            data[rxBytes] = 0;
-            ESP_LOGI(TAG, "Read %d bytes: '%s'", rxBytes, data);
-            ESP_LOG_BUFFER_HEXDUMP(TAG, data, rxBytes, ESP_LOG_INFO);    
-        } 
-        vTaskDelay(pdMS_TO_TICKS(1000)); 
-    }
-    free(data);
 }
 
 void ui_task(void *pvParameters) 
@@ -107,7 +67,7 @@ void app_main(void)
 
     // UART config section from void function
     ssd1306_display_text(&dev, 1, "UART: ...", 9, false);
-    init_UART();
+    stm32_uart_init();
     ssd1306_display_text(&dev, 1, "UART: OK", 8, false);
 
     // NVS section
@@ -142,7 +102,8 @@ void app_main(void)
 
     // Tasks section
     xTaskCreate(debug_monitor, "debug_monitor", 2048, NULL, 5, NULL);
-    xTaskCreate(UART_RX_task, "uart_rx_task", 8192, NULL, 5, NULL);
+    xTaskCreate(stm32_rx_task, "stm32_rx_task", 4096, NULL, 6, NULL);
+    xTaskCreate(stm32_ping_task, "stm32_ping_task", 3072, NULL, 5, NULL);
     xTaskCreate(ui_task, "ui_task", 4096, NULL, 5, NULL);
     xTaskCreate(footswitch_task, "footswitch_task", 2048, NULL, 5, NULL);
 
