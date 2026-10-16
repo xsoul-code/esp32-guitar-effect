@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="GuitarFX">
+<meta name="theme-color" content="#111419">
+<title>GuitarFX</title>
+<style>
+/* Served by ESP32 (no internet in SoftAP mode) - no web fonts, no libraries */
+:root {
+  --bg: #111419;
+  --bg-glass: rgba(17, 20, 25, 0.92);
+  --panel: #191d24;
+  --panel-2: #222832;
+  --line: #2c333e;
+  --fg: #e8eaef;
+  --muted: #8a92a0;
+  --led: #ff3d2e;
+  --ok: #46c97a;
+  --warn: #f0a531;
+  --steel-1: #4a525e;
+  --steel-2: #1c2129;
+  --dist: #f2862b;
+  --chorus: #56c2e0;
+  --echo: #9cc96b;
+  --reverb: #8a96ff;
+  --main: #c9ced8;
+  --on-fx: #111419;
+  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 15px; line-height: 1.4;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+
+.wrap {
+  max-width: 560px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 40px;
+  display: grid; gap: 18px;
+}
+
+.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg-glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+.top-in {
+  max-width: 560px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.brand { display: grid; gap: 1px; min-width: 0; }
+.brand b { font-size: 17px; letter-spacing: 0.12em; text-transform: uppercase; }
+.brand small { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.pills { display: flex; gap: 6px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--muted);
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.ok .dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.pill.bad { color: var(--warn); border-color: var(--warn); }
+.pill.bad .dot { background: var(--warn); }
+
+h2 {
+  margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted);
+}
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 18px; }
+fieldset:disabled { opacity: 0.45; }
+
+.banner {
+  margin: 0; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px;
+  color: var(--warn); font-size: 13px;
+}
+.banner code { font-family: var(--mono); }
+.wait { margin: 0; color: var(--muted); font-size: 14px; }
+
+.master {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+}
+.foot-wrap { display: grid; justify-items: center; gap: 8px; }
+.foot {
+  width: 86px; height: 86px; border-radius: 50%; border: 0; cursor: pointer; position: relative;
+  background: radial-gradient(circle at 35% 30%, var(--steel-1), var(--steel-2) 70%);
+  box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.5), 0 3px 0 var(--steel-2);
+}
+.foot:active { transform: translateY(2px); box-shadow: inset 0 -2px 6px rgba(0, 0, 0, 0.5), 0 1px 0 var(--steel-2); }
+.foot::after {
+  content: ""; position: absolute; inset: 24px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, var(--steel-1), var(--steel-2));
+  border: 1px solid var(--line);
+}
+.led { width: 10px; height: 10px; border-radius: 50%; background: #3a1612; border: 1px solid #000; }
+.led.on { background: var(--led); box-shadow: 0 0 8px var(--led), 0 0 2px #fff inset; }
+.foot-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; }
+.foot-state { font-size: 12px; color: var(--muted); text-align: center; max-width: 100px; }
+.stack { display: grid; gap: 14px; min-width: 0; }
+
+.fx-area { display: grid; gap: 10px; transition: opacity 0.15s; }
+.fx-area.bypassed { opacity: 0.5; }
+.fx-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 520px) { .fx-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.fx {
+  position: relative; text-align: left; cursor: pointer;
+  min-height: 92px; padding: 14px 12px 12px; border-radius: 12px;
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line);
+  display: grid; align-content: end; gap: 2px; font: inherit; overflow: hidden;
+}
+.fx::before { content: ""; position: absolute; inset: 0 0 auto; height: 6px; background: var(--fx); }
+.fx .led { position: absolute; top: 14px; right: 12px; }
+.fx-name { font-weight: 800; font-size: 16px; letter-spacing: 0.1em; }
+.fx-sub { font-size: 12px; color: var(--muted); }
+.fx[aria-pressed="true"] { background: var(--fx); color: var(--on-fx); border-color: var(--fx); }
+.fx[aria-pressed="true"] .fx-sub { color: var(--on-fx); opacity: 0.75; }
+.hint { margin: 0; font-size: 12px; color: var(--muted); }
+
+.presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 520px) { .presets { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.preset {
+  font: inherit; font-weight: 700; letter-spacing: 0.08em; cursor: pointer;
+  padding: 12px 10px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--fg); border-top: 4px solid var(--fx);
+}
+.preset[aria-pressed="true"] { background: var(--fx); color: var(--on-fx); border-color: var(--fx); }
+
+.sec {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+  border-top: 3px solid var(--fx, var(--main));
+}
+.sec > summary {
+  list-style: none; cursor: pointer; padding: 12px 14px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.sec > summary::-webkit-details-marker { display: none; }
+.sec-title { font-weight: 700; letter-spacing: 0.06em; }
+.sec-title small { color: var(--muted); font-weight: 500; letter-spacing: 0; margin-left: 6px; }
+.badge {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted);
+}
+.badge.on { background: var(--fx); color: var(--on-fx); border-color: var(--fx); }
+.sec-body { padding: 4px 14px 14px; display: grid; gap: 14px; }
+.sec > summary .chev { color: var(--muted); transition: transform 0.15s; }
+.sec[open] > summary .chev { transform: rotate(90deg); }
+
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; }
+.row label { font-size: 14px; }
+.row output { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; transition: opacity 0.1s; }
+.row output.pending { opacity: 0.45; }
+.row input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; height: 28px; accent-color: var(--fx, var(--main)); }
+.row.toggle { align-items: center; }
+.row.toggle input { width: 22px; height: 22px; accent-color: var(--fx, var(--main)); margin: 0; }
+
+.console { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.console > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; display: flex; justify-content: space-between; gap: 10px; }
+.console > summary span { color: var(--muted); font-weight: 500; font-family: var(--mono); font-size: 12px; }
+.log {
+  list-style: none; margin: 0; padding: 0 14px 12px; max-height: 240px; overflow: auto;
+  font-family: var(--mono); font-size: 12px; line-height: 1.6;
+}
+.log li { white-space: pre-wrap; word-break: break-all; }
+.log .tx { color: var(--muted); }
+.log .rx { color: var(--chorus); }
+.log .err { color: var(--warn); }
+
+footer { font-size: 12px; color: var(--muted); }
+
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--main); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand">
+      <b>GuitarFX</b>
+      <small id="host">pedal.local</small>
+    </div>
+    <div class="pills">
+      <span class="pill bad" id="pill-esp"><span class="dot"></span>ESP32</span>
+      <span class="pill bad" id="pill-stm"><span class="dot"></span>STM32</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="banner" id="offline" hidden></p>
+  <p class="wait" id="wait">Łączenie z efektem…</p>
+
+  <fieldset id="controls" disabled>
+    <section class="master" style="--fx: var(--main)">
+      <div class="foot-wrap" id="foot" hidden>
+        <span class="led" id="led-master"></span>
+        <button class="foot" id="bypass" aria-pressed="false" aria-label="Bypass"></button>
+        <span class="foot-label">Bypass</span>
+        <span class="foot-state" id="bypass-state"></span>
+      </div>
+      <div class="stack" data-group="main"></div>
+    </section>
+
+    <div class="fx-area" id="fx-area">
+      <h2>Efekty</h2>
+      <div class="presets" id="presets" hidden>
+        <button class="preset" data-preset="0" style="--fx: var(--main)" aria-pressed="false">CLEAN</button>
+        <button class="preset" data-preset="1" style="--fx: var(--dist)" aria-pressed="false">DIST</button>
+        <button class="preset" data-preset="2" style="--fx: var(--chorus)" aria-pressed="false">CHORUS</button>
+        <button class="preset" data-preset="3" style="--fx: var(--reverb)" aria-pressed="false">DIST+CHORUS</button>
+      </div>
+      <div class="fx-grid" id="fx-grid" hidden>
+        <button class="fx" data-fx="fx_dist" style="--fx: var(--dist)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">DIST</span><span class="fx-sub">Przester</span></button>
+        <button class="fx" data-fx="fx_chorus" style="--fx: var(--chorus)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">CHORUS</span><span class="fx-sub">Chorus</span></button>
+        <button class="fx" data-fx="fx_echo" style="--fx: var(--echo)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">ECHO</span><span class="fx-sub">Echo</span></button>
+        <button class="fx" data-fx="fx_reverb" style="--fx: var(--reverb)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">REVERB</span><span class="fx-sub">Pogłos</span></button>
+      </div>
+      <p class="hint" id="fx-hint" hidden>Dotknij efektu, żeby go włączyć. Efekty można łączyć.</p>
+    </div>
+
+    <details class="sec" style="--fx: var(--dist)" data-sec="dist" hidden open>
+      <summary><span class="sec-title">DIST<small>przester</small></span><span><span class="badge" data-badge="fx_dist" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
+      <div class="sec-body" data-group="dist"></div>
+    </details>
+    <details class="sec" style="--fx: var(--chorus)" data-sec="chorus" hidden>
+      <summary><span class="sec-title">CHORUS</span><span><span class="badge" data-badge="fx_chorus" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
+      <div class="sec-body" data-group="chorus"></div>
+    </details>
+    <details class="sec" style="--fx: var(--echo)" data-sec="echo" hidden>
+      <summary><span class="sec-title">ECHO</span><span><span class="badge" data-badge="fx_echo" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
+      <div class="sec-body" data-group="echo"></div>
+    </details>
+    <details class="sec" style="--fx: var(--reverb)" data-sec="reverb" hidden>
+      <summary><span class="sec-title">REVERB<small>pogłos</small></span><span><span class="badge" data-badge="fx_reverb" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
+      <div class="sec-body" data-group="reverb"></div>
+    </details>
+    <details class="sec" style="--fx: var(--main)" data-sec="eq" hidden open>
+      <summary><span class="sec-title">EQ<small>3 pasma</small></span><span class="chev">›</span></summary>
+      <div class="sec-body" data-group="eq"></div>
+    </details>
+  </fieldset>
+
+  <details class="console">
+    <summary>Ruch na łączu <span id="count">0 linii</span></summary>
+    <ol class="log" id="log"></ol>
+  </details>
+
+  <footer>GuitarFX · ESP32 ↔ STM32 (UART) · protokół: docs/UART_PROTOCOL.md</footer>
+</main>
+
+<script>
+const PCT = v => Math.round(v * 100) + '%';
+const DB = v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
+const SHAPE = v => v < 0.05 ? 'sinus' : v > 0.95 ? 'trójkąt' : Math.round(v * 100) + '% trójkąt';
+
+// name, group, label, type, min, max, format, log scale
+// a control is shown only after STM32 reports it with VAL (works with protocol v1 and v2)
+const P = [
+  ['preset', '-', 'Preset', 'i', 0, 3],
+  ['bypass', '-', 'Bypass', 'i', 0, 1],
+  ['fx_dist', '-', 'DIST', 'i', 0, 1],
+  ['fx_chorus', '-', 'CHORUS', 'i', 0, 1],
+  ['fx_echo', '-', 'ECHO', 'i', 0, 1],
+  ['fx_reverb', '-', 'REVERB', 'i', 0, 1],
+  ['volume', 'main', 'Głośność', 'f', 0, 1, PCT],
+  ['eq_low_db', 'eq', 'Niskie · 100 Hz', 'f', -12, 12, DB],
+  ['eq_mid_db', 'eq', 'Środek · 800 Hz', 'f', -12, 12, DB],
+  ['eq_high_db', 'eq', 'Wysokie · 3.5 kHz', 'f', -12, 12, DB],
+  ['clean_gain', 'main', 'Wzmocnienie czystego toru', 'f', 0, 64, v => '×' + v.toFixed(1)],
+  ['drive', 'dist', 'Drive', 'f', 1, 200, v => '×' + Math.round(v), true],
+  ['clip_level', 'dist', 'Próg obcinania', 'f', 100, 30000, v => String(Math.round(v)), true],
+  ['chorus_rate_hz', 'chorus', 'Rate', 'f', 0.05, 5, v => v.toFixed(2) + ' Hz', true],
+  ['chorus_depth', 'chorus', 'Głębokość', 'f', 0, 1, PCT],
+  ['chorus_mix', 'chorus', 'Mix', 'f', 0, 1, PCT],
+  ['chorus_delay_ms', 'chorus', 'Opóźnienie', 'f', 5, 25, v => v.toFixed(1) + ' ms'],
+  ['chorus_feedback', 'chorus', 'Feedback', 'f', 0, 0.7, PCT],
+  ['chorus_stereo', 'chorus', 'Stereo (różne głosy L/P)', 'i', 0, 1],
+  ['chorus_shape', 'chorus', 'Kształt LFO', 'f', 0, 1, SHAPE],
+  ['chorus_tone', 'chorus', 'Barwa', 'f', 0, 1, PCT],
+  ['echo_time_ms', 'echo', 'Czas', 'f', 20, 1300, v => Math.round(v) + ' ms', true],
+  ['echo_feedback', 'echo', 'Powtórzenia', 'f', 0, 0.95, PCT],
+  ['echo_mix', 'echo', 'Mix', 'f', 0, 1, PCT],
+  ['echo_tone', 'echo', 'Barwa', 'f', 0, 1, PCT],
+  ['echo_mod', 'echo', 'Modulacja', 'f', 0, 1, PCT],
+  ['reverb_mix', 'reverb', 'Mix', 'f', 0, 1, PCT],
+  ['reverb_decay', 'reverb', 'Zanik', 'f', 0, 1, PCT],
+  ['reverb_damping', 'reverb', 'Tłumienie', 'f', 0, 1, PCT],
+  ['reverb_predelay_ms', 'reverb', 'Pre-delay', 'f', 0, 100, v => Math.round(v) + ' ms'],
+  ['linvol', 'main', 'Wejście kodeka', 'i', 0, 23, v => (-34.5 + 1.5 * v).toFixed(1) + ' dB'],
+].map(([n, g, label, t, min, max, f, log]) => ({ n, g, label, t, min, max, f, log: !!log }));
+const byName = Object.fromEntries(P.map(p => [p.n, p]));
+const FX = ['fx_dist', 'fx_chorus', 'fx_echo', 'fx_reverb'];
+const FX_GROUP = { fx_dist: 'dist', fx_chorus: 'chorus', fx_echo: 'echo', fx_reverb: 'reverb' };
+
+const state = {};          // values confirmed by STM32 (VAL)
+const touched = {};        // last local slider move, so a VAL does not fight the finger
+const rows = {};
+let wsOpen = false, linkUp = false;
+
+/* ---------- console ---------- */
+const logEl = document.getElementById('log');
+let lines = 0;
+function log(cls, text) {
+  const li = document.createElement('li');
+  li.className = cls;
+  li.textContent = (cls === 'tx' ? '→ ' : '← ') + text;
+  logEl.appendChild(li);
+  while (logEl.children.length > 80) logEl.firstChild.remove();
+  logEl.scrollTop = logEl.scrollHeight;
+  document.getElementById('count').textContent = ++lines + ' linii';
+}
+
+/* ---------- WebSocket to ESP32 ---------- */
+let ws;
+function connect() {
+  ws = new WebSocket('ws://' + location.host + '/ws');
+  ws.onopen = () => { wsOpen = true; updateStatus(); send('GET ALL'); };
+  ws.onclose = () => { wsOpen = false; updateStatus(); setTimeout(connect, 2000); };   // iPhone after screen lock
+  ws.onmessage = e => e.data.split('\n').forEach(l => l && panelRx(l));
+}
+function send(line) {
+  log('tx', line);
+  if (ws && ws.readyState === 1) ws.send(line);
+}
+
+function panelRx(line) {
+  const t = line.split(' ');
+  if (t[0] === 'LINK') { linkUp = t[1] === 'up'; updateStatus(); return; }
+  log(t[0] === 'ERR' ? 'err' : 'rx', line);
+  if (t[0] === 'VAL' && byName[t[1]]) {
+    state[t[1]] = parseFloat(t[2]);
+    render(byName[t[1]]);
+    document.getElementById('wait').hidden = true;
+  }
+}
+
+function updateStatus() {
+  const pe = document.getElementById('pill-esp'), ps = document.getElementById('pill-stm');
+  pe.classList.toggle('ok', wsOpen); pe.classList.toggle('bad', !wsOpen);
+  ps.classList.toggle('ok', wsOpen && linkUp); ps.classList.toggle('bad', !(wsOpen && linkUp));
+  const banner = document.getElementById('offline');
+  if (!wsOpen) {
+    banner.textContent = 'Brak połączenia z ESP32. Łączę ponownie…';
+  } else if (!linkUp) {
+    banner.innerHTML = 'STM32 nie odpowiada na PING. Sprawdź przewody UART: <code>GPIO17 → PD9</code>, <code>GPIO16 ← PD8</code>, GND.';
+  }
+  banner.hidden = wsOpen && linkUp;
+  document.getElementById('controls').disabled = !(wsOpen && linkUp);
+}
+
+const lastSent = {}, timers = {};
+function queueSet(p, v) {          // max ~12 SET/s per slider while dragging
+  const go = () => { lastSent[p.n] = performance.now(); send(`SET ${p.n} ${p.t === 'i' ? String(v) : v.toFixed(3)}`); };
+  clearTimeout(timers[p.n]);
+  const dt = performance.now() - (lastSent[p.n] || 0);
+  if (dt > 80) go(); else timers[p.n] = setTimeout(go, 80 - dt);
+}
+
+const toSlider = (p, v) => p.t === 'i' ? v : p.log ? 1000 * Math.log(v / p.min) / Math.log(p.max / p.min) : 1000 * (v - p.min) / (p.max - p.min);
+const fromSlider = (p, s) => p.t === 'i' ? Math.round(s) : p.log ? p.min * Math.pow(p.max / p.min, s / 1000) : p.min + (p.max - p.min) * s / 1000;
+
+/* build slider rows from the table, hidden until STM32 reports the parameter */
+for (const p of P) {
+  const box = document.querySelector(`[data-group="${p.g}"]`);
+  if (!box) continue;
+  const row = document.createElement('div');
+  row.hidden = true;
+  if (p.n === 'chorus_stereo') {
+    row.className = 'row toggle';
+    row.innerHTML = `<label for="s-${p.n}">${p.label}</label><input type="checkbox" id="s-${p.n}">`;
+    row.querySelector('input').addEventListener('change', e => queueSet(p, e.target.checked ? 1 : 0));
+  } else {
+    row.className = 'row';
+    const max = p.t === 'i' ? p.max : 1000;
+    const min = p.t === 'i' ? p.min : 0;
+    row.innerHTML = `<label for="s-${p.n}">${p.label}</label><output id="o-${p.n}" for="s-${p.n}">—</output>` +
+      `<input type="range" id="s-${p.n}" min="${min}" max="${max}" step="1">`;
+    const input = row.querySelector('input'), out = row.querySelector('output');
+    input.addEventListener('input', () => {
+      touched[p.n] = performance.now();
+      const v = fromSlider(p, +input.value);
+      out.textContent = p.f(v);
+      out.classList.add('pending');
+      queueSet(p, v);
+    });
+  }
+  box.appendChild(row);
+  rows[p.n] = row;
+}
+
+function showSection(group) {
+  const sec = document.querySelector(`[data-sec="${group}"]`);
+  if (sec) sec.hidden = false;
+}
+
+function render(p) {
+  const v = state[p.n];
+  if (p.n === 'preset') {
+    document.getElementById('presets').hidden = false;
+    document.querySelectorAll('.preset').forEach(b => b.setAttribute('aria-pressed', +b.dataset.preset === v ? 'true' : 'false'));
+  } else if (p.n === 'bypass') {
+    document.getElementById('foot').hidden = false;
+    document.getElementById('bypass').setAttribute('aria-pressed', v ? 'true' : 'false');
+    document.getElementById('led-master').classList.toggle('on', !v);
+    document.getElementById('bypass-state').textContent = v ? 'Bypass: czysty sygnał' : 'Efekty aktywne';
+    document.getElementById('fx-area').classList.toggle('bypassed', !!v);
+    FX.forEach(f => state[f] !== undefined && render(byName[f]));
+  } else if (FX.includes(p.n)) {
+    document.getElementById('fx-grid').hidden = false;
+    document.getElementById('fx-hint').hidden = false;
+    const tile = document.querySelector(`[data-fx="${p.n}"]`);
+    tile.hidden = false;
+    tile.setAttribute('aria-pressed', v ? 'true' : 'false');
+    tile.querySelector('.led').classList.toggle('on', !!v && !state.bypass);
+    const badge = document.querySelector(`[data-badge="${p.n}"]`);
+    badge.hidden = false;
+    badge.textContent = v ? 'WŁ' : 'WYŁ';
+    badge.classList.toggle('on', !!v);
+    showSection(FX_GROUP[p.n]);
+  } else if (rows[p.n]) {
+    rows[p.n].hidden = false;
+    showSection(p.g);
+    if (p.n === 'chorus_stereo') {
+      document.getElementById('s-chorus_stereo').checked = !!v;
+    } else {
+      const out = document.getElementById('o-' + p.n);
+      out.textContent = p.f(v);
+      out.classList.remove('pending');
+      if (performance.now() - (touched[p.n] || 0) > 400) document.getElementById('s-' + p.n).value = toSlider(p, v);
+    }
+  }
+}
+
+document.getElementById('bypass').addEventListener('click', () => queueSet(byName.bypass, state.bypass ? 0 : 1));
+document.querySelectorAll('.fx').forEach(tile => tile.addEventListener('click', () => {
+  const n = tile.dataset.fx;
+  queueSet(byName[n], state[n] ? 0 : 1);
+}));
+document.querySelectorAll('.preset').forEach(b => b.addEventListener('click', () => queueSet(byName.preset, +b.dataset.preset)));
+
+document.getElementById('host').textContent = location.host || 'pedal.local';
+updateStatus();
+connect();
+</script>
+</body>
+</html>

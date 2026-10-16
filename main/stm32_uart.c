@@ -1,4 +1,5 @@
 #include "include/stm32_uart.h"
+#include "include/web.h"
 #include <string.h>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
@@ -14,7 +15,7 @@
 #define UART_RX GPIO_NUM_16              // <- STM32 PD8 (USART3_TX)
 #define UART_BAUD_RATE 115200
 
-static const int RX_BUF_SIZE = 1024;
+#define RX_BUF_SIZE 1024
 
 static volatile TickType_t last_rx_tick = 0;
 
@@ -36,6 +37,7 @@ void stm32_uart_init(void) // UART initializaion (ESP-IDF GitHub see references 
 int stm32_send(const char *cmd) // protocol: docs/UART_PROTOCOL.md
 {
     char buf[STM32_LINE_MAX];
+    if (strpbrk(cmd, "\r\n") != NULL) return -1;
     int len = snprintf(buf, sizeof(buf), "%s\n", cmd);
     if (len < 0 || len >= (int)sizeof(buf)) return -1;
     return uart_write_bytes(STM32_UART, buf, len);
@@ -67,7 +69,9 @@ void stm32_rx_task(void *pvParameters) // source: Github esp-idf/examples/periph
 {
     uint8_t *data = (uint8_t *) malloc(RX_BUF_SIZE);
     char line[STM32_LINE_MAX];
+    static char out[RX_BUF_SIZE + STM32_LINE_MAX];  // lines for web clients, one WebSocket frame per read
     int pos = 0;
+    int out_len = 0;
     bool too_long = false;
     while(1)
     {
@@ -79,12 +83,22 @@ void stm32_rx_task(void *pvParameters) // source: Github esp-idf/examples/periph
             if (c == '\n')
             {
                 line[pos] = '\0';
-                if (pos > 0 && !too_long) stm32_handle_line(line);
+                if (pos > 0 && !too_long)
+                {
+                    stm32_handle_line(line);
+                    if (strcmp(line, "PONG") != 0)
+                        out_len += snprintf(out + out_len, sizeof(out) - out_len, "%s\n", line);
+                }
                 pos = 0;
                 too_long = false;
             }
             else if (pos < STM32_LINE_MAX - 1) line[pos++] = c;
             else too_long = true;
+        }
+        if (out_len > 0)
+        {
+            web_broadcast(out);
+            out_len = 0;
         }
     }
     free(data);
@@ -102,6 +116,7 @@ void stm32_ping_task(void *pvParameters)
         if (online != was_online)
         {
             ESP_LOGI(TAG, "STM32 %s", online ? "online" : "offline");
+            web_broadcast(online ? "LINK up" : "LINK down");
             if (online) stm32_send("GET ALL");
             was_online = online;
         }

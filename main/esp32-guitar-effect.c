@@ -14,6 +14,7 @@
 #include "include/oled.h"
 #include "include/mqtt.h"
 #include "include/stm32_uart.h"
+#include "include/web.h"
 
 #define TAG "Smart Guitar Effect"   // FIRMWARE TAG
 
@@ -86,6 +87,11 @@ void app_main(void)
     ESP_LOGI(TAG, "WiFi MODE STA (station)");
     wifi_init_sta();
     ssd1306_display_text(&dev, 3, "WiFi: OK", 8, false);
+
+    // Web server section (panel: http://<ESP32 IP>/)
+    ssd1306_display_text(&dev, 4, "WEB:  ...", 9, false);
+    web_init();
+    ssd1306_display_text(&dev, 4, "WEB:  OK", 8, false);
 
     // MQTT section
     ssd1306_display_text(&dev, 3, "MQTT: ...", 10, false);
