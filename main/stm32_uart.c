@@ -1,5 +1,6 @@
 #include "include/stm32_uart.h"
 #include "include/web.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "freertos/FreeRTOS.h"
@@ -18,6 +19,10 @@
 #define RX_BUF_SIZE 1024
 
 static volatile TickType_t last_rx_tick = 0;
+
+volatile stm32_state_t stm32_state = { -1, -1, -1, -1, -1 };
+stm32_change_t stm32_last_change;
+static char last_set_name[24];      // name from the last SET, its VAL goes to stm32_last_change
 
 void stm32_uart_init(void) // UART initializaion (ESP-IDF GitHub see references in README.md)
 {
@@ -38,6 +43,7 @@ int stm32_send(const char *cmd) // protocol: docs/UART_PROTOCOL.md
 {
     char buf[STM32_LINE_MAX];
     if (strpbrk(cmd, "\r\n") != NULL) return -1;
+    if (strncmp(cmd, "SET ", 4) == 0) sscanf(cmd + 4, "%23s", last_set_name);
     int len = snprintf(buf, sizeof(buf), "%s\n", cmd);
     if (len < 0 || len >= (int)sizeof(buf)) return -1;
     return uart_write_bytes(STM32_UART, buf, len);
@@ -46,6 +52,25 @@ int stm32_send(const char *cmd) // protocol: docs/UART_PROTOCOL.md
 bool stm32_online(void) // any line from STM32 in last 3 s
 {
     return last_rx_tick != 0 && (xTaskGetTickCount() - last_rx_tick) < pdMS_TO_TICKS(3000);
+}
+
+static void stm32_update_state(const char *args) // "<name> <value>" -> mirror for OLED
+{
+    char name[24], text[16];
+    if (sscanf(args, "%23s %15s", name, text) != 2) return;
+    int value = atoi(text);
+    if (strcmp(name, "bypass") == 0) stm32_state.bypass = value;
+    else if (strcmp(name, "fx_dist") == 0) stm32_state.fx_dist = value;
+    else if (strcmp(name, "fx_chorus") == 0) stm32_state.fx_chorus = value;
+    else if (strcmp(name, "fx_echo") == 0) stm32_state.fx_echo = value;
+    else if (strcmp(name, "fx_reverb") == 0) stm32_state.fx_reverb = value;
+    else if (strcmp(name, last_set_name) == 0)     // reply to our SET -> show on OLED
+    {
+        strcpy(stm32_last_change.name, name);
+        strcpy(stm32_last_change.value, text);
+        stm32_last_change.tick = xTaskGetTickCount();
+        last_set_name[0] = '\0';
+    }
 }
 
 static void stm32_handle_line(char *line)
@@ -59,6 +84,9 @@ static void stm32_handle_line(char *line)
         stm32_send("GET ALL");
     } else if (strncmp(line, "ERR", 3) == 0) {
         ESP_LOGW(TAG, "%s", line);
+    } else if (strncmp(line, "VAL ", 4) == 0) {
+        ESP_LOGI(TAG, "%s", line);
+        stm32_update_state(line + 4);
     } else {
         ESP_LOGI(TAG, "%s", line);
     }

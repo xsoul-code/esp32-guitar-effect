@@ -96,6 +96,18 @@ void web_broadcast(const char *text) // source: Github esp-idf/examples/protocol
     }
 }
 
+int web_client_count(void) // number of open panels (WebSocket clients)
+{
+    if (server == NULL) return 0;
+    size_t clients = WEB_MAX_CLIENTS;
+    int client_fds[WEB_MAX_CLIENTS];
+    if (httpd_get_client_list(server, &clients, client_fds) != ESP_OK) return 0;
+    int n = 0;
+    for (size_t i = 0; i < clients; i++)
+        if (httpd_ws_get_fd_info(server, client_fds[i]) == HTTPD_WS_CLIENT_WEBSOCKET) n++;
+    return n;
+}
+
 static const httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler };
 static const httpd_uri_t ws_uri = { .uri = "/ws", .method = HTTP_GET, .handler = ws_handler, .is_websocket = true };
 
