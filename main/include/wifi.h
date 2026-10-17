@@ -8,4 +8,4 @@
 
 extern char wifi_status[17];
 
-void wifi_init_sta(void);
+void wifi_init_apsta(void);

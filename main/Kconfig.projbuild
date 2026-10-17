@@ -18,6 +18,18 @@ menu "WiFi Configuration"
         help
             Maximum number of retries to connect to the AP.
 
+    config ESP_WIFI_AP_SSID
+        string "Pedal WiFi name (SoftAP)"
+        default "GuitarFX"
+        help
+            WiFi network created by the pedal, panel at http://192.168.4.1
+
+    config ESP_WIFI_AP_PASSWORD
+        string "Pedal WiFi password (SoftAP)"
+        default "guitarfx"
+        help
+            WPA2 password, at least 8 characters. Empty = open network.
+
 endmenu
 
 menu "MQTT Configuration"

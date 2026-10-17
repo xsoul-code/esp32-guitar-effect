@@ -129,15 +129,6 @@ fieldset:disabled { opacity: 0.45; }
 .fx[aria-pressed="true"] .fx-sub { color: var(--on-fx); opacity: 0.75; }
 .hint { margin: 0; font-size: 12px; color: var(--muted); }
 
-.presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-@media (min-width: 520px) { .presets { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-.preset {
-  font: inherit; font-weight: 700; letter-spacing: 0.08em; cursor: pointer;
-  padding: 12px 10px; border-radius: 10px; border: 1px solid var(--line);
-  background: var(--panel); color: var(--fg); border-top: 4px solid var(--fx);
-}
-.preset[aria-pressed="true"] { background: var(--fx); color: var(--on-fx); border-color: var(--fx); }
-
 .sec {
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   border-top: 3px solid var(--fx, var(--main));
@@ -216,19 +207,13 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px 
 
     <div class="fx-area" id="fx-area">
       <h2>Efekty</h2>
-      <div class="presets" id="presets" hidden>
-        <button class="preset" data-preset="0" style="--fx: var(--main)" aria-pressed="false">CLEAN</button>
-        <button class="preset" data-preset="1" style="--fx: var(--dist)" aria-pressed="false">DIST</button>
-        <button class="preset" data-preset="2" style="--fx: var(--chorus)" aria-pressed="false">CHORUS</button>
-        <button class="preset" data-preset="3" style="--fx: var(--reverb)" aria-pressed="false">DIST+CHORUS</button>
-      </div>
       <div class="fx-grid" id="fx-grid" hidden>
         <button class="fx" data-fx="fx_dist" style="--fx: var(--dist)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">DIST</span><span class="fx-sub">Przester</span></button>
         <button class="fx" data-fx="fx_chorus" style="--fx: var(--chorus)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">CHORUS</span><span class="fx-sub">Chorus</span></button>
         <button class="fx" data-fx="fx_echo" style="--fx: var(--echo)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">ECHO</span><span class="fx-sub">Echo</span></button>
         <button class="fx" data-fx="fx_reverb" style="--fx: var(--reverb)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">REVERB</span><span class="fx-sub">Pogłos</span></button>
       </div>
-      <p class="hint" id="fx-hint" hidden>Dotknij efektu, żeby go włączyć. Efekty można łączyć.</p>
+      <p class="hint" id="fx-hint" hidden>Dotknij efektu, żeby go włączyć. Efekty można łączyć. Echo i pogłos po wyłączeniu wybrzmiewają, bypass wycina wszystko od razu.</p>
     </div>
 
     <details class="sec" style="--fx: var(--dist)" data-sec="dist" hidden open>
@@ -267,9 +252,8 @@ const DB = v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
 const SHAPE = v => v < 0.05 ? 'sinus' : v > 0.95 ? 'trójkąt' : Math.round(v * 100) + '% trójkąt';
 
 // name, group, label, type, min, max, format, log scale
-// a control is shown only after STM32 reports it with VAL (works with protocol v1 and v2)
+// a control is shown only after STM32 reports it with VAL (protocol v2)
 const P = [
-  ['preset', '-', 'Preset', 'i', 0, 3],
   ['bypass', '-', 'Bypass', 'i', 0, 1],
   ['fx_dist', '-', 'DIST', 'i', 0, 1],
   ['fx_chorus', '-', 'CHORUS', 'i', 0, 1],
@@ -296,7 +280,7 @@ const P = [
   ['echo_tone', 'echo', 'Barwa', 'f', 0, 1, PCT],
   ['echo_mod', 'echo', 'Modulacja', 'f', 0, 1, PCT],
   ['reverb_mix', 'reverb', 'Mix', 'f', 0, 1, PCT],
-  ['reverb_decay', 'reverb', 'Zanik', 'f', 0, 1, PCT],
+  ['reverb_decay', 'reverb', 'Zanik (RT60)', 'f', 0, 1, v => (0.4 * Math.pow(50, v)).toFixed(1) + ' s'],
   ['reverb_damping', 'reverb', 'Tłumienie', 'f', 0, 1, PCT],
   ['reverb_predelay_ms', 'reverb', 'Pre-delay', 'f', 0, 100, v => Math.round(v) + ' ms'],
   ['linvol', 'main', 'Wejście kodeka', 'i', 0, 23, v => (-34.5 + 1.5 * v).toFixed(1) + ' dB'],
@@ -327,7 +311,7 @@ function log(cls, text) {
 let ws;
 function connect() {
   ws = new WebSocket('ws://' + location.host + '/ws');
-  ws.onopen = () => { wsOpen = true; updateStatus(); send('GET ALL'); };
+  ws.onopen = () => { wsOpen = true; updateStatus(); resetPanel(); send('GET ALL'); };
   ws.onclose = () => { wsOpen = false; updateStatus(); setTimeout(connect, 2000); };   // iPhone after screen lock
   ws.onmessage = e => e.data.split('\n').forEach(l => l && panelRx(l));
 }
@@ -340,11 +324,20 @@ function panelRx(line) {
   const t = line.split(' ');
   if (t[0] === 'LINK') { linkUp = t[1] === 'up'; updateStatus(); return; }
   log(t[0] === 'ERR' ? 'err' : 'rx', line);
+  if (t[0] === 'HELLO') resetPanel();      // STM32 restarted, maybe with other firmware
   if (t[0] === 'VAL' && byName[t[1]]) {
     state[t[1]] = parseFloat(t[2]);
     render(byName[t[1]]);
     document.getElementById('wait').hidden = true;
   }
+}
+
+function resetPanel() {
+  for (const k in state) delete state[k];
+  Object.values(rows).forEach(r => r.hidden = true);
+  document.querySelectorAll('[data-sec], .fx, [data-badge]').forEach(e => e.hidden = true);
+  ['fx-grid', 'fx-hint', 'foot'].forEach(id => document.getElementById(id).hidden = true);
+  document.getElementById('wait').hidden = false;
 }
 
 function updateStatus() {
@@ -408,10 +401,7 @@ function showSection(group) {
 
 function render(p) {
   const v = state[p.n];
-  if (p.n === 'preset') {
-    document.getElementById('presets').hidden = false;
-    document.querySelectorAll('.preset').forEach(b => b.setAttribute('aria-pressed', +b.dataset.preset === v ? 'true' : 'false'));
-  } else if (p.n === 'bypass') {
+  if (p.n === 'bypass') {
     document.getElementById('foot').hidden = false;
     document.getElementById('bypass').setAttribute('aria-pressed', v ? 'true' : 'false');
     document.getElementById('led-master').classList.toggle('on', !v);
@@ -449,7 +439,6 @@ document.querySelectorAll('.fx').forEach(tile => tile.addEventListener('click', 
   const n = tile.dataset.fx;
   queueSet(byName[n], state[n] ? 0 : 1);
 }));
-document.querySelectorAll('.preset').forEach(b => b.addEventListener('click', () => queueSet(byName.preset, +b.dataset.preset)));
 
 document.getElementById('host').textContent = location.host || 'pedal.local';
 updateStatus();

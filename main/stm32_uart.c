@@ -50,14 +50,13 @@ bool stm32_online(void) // any line from STM32 in last 3 s
 
 static void stm32_handle_line(char *line)
 {
-    bool was_online = stm32_online();
     last_rx_tick = xTaskGetTickCount();
 
     if (strcmp(line, "PONG") == 0) {
         ESP_LOGD(TAG, "PONG");
     } else if (strncmp(line, "HELLO", 5) == 0) {
         ESP_LOGI(TAG, "STM32 restarted: %s", line);
-        if (was_online) stm32_send("GET ALL");
+        stm32_send("GET ALL");
     } else if (strncmp(line, "ERR", 3) == 0) {
         ESP_LOGW(TAG, "%s", line);
     } else {

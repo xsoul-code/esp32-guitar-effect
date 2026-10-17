@@ -1,11 +1,14 @@
 /*
 
-    WiFi initialization based on ESP-IDF station example
+    WiFi initialization based on ESP-IDF station and softap_sta examples
     https://github.com/espressif/esp-idf/tree/master/examples/wifi/getting_started/station
+    https://github.com/espressif/esp-idf/tree/master/examples/wifi/softap_sta
 
 */
 
 #include "include/wifi.h"
+#include <string.h>
+#include "esp_mac.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 
@@ -14,6 +17,9 @@
 #define WIFI_SSID CONFIG_ESP_WIFI_SSID
 #define WIFI_PASS CONFIG_ESP_WIFI_PASSWORD
 #define MAX_RETRY CONFIG_ESP_MAXIMUM_RETRY
+#define AP_SSID CONFIG_ESP_WIFI_AP_SSID
+#define AP_PASS CONFIG_ESP_WIFI_AP_PASSWORD
+#define AP_MAX_CONN 4
 
 static EventGroupHandle_t s_wifi_event_group;
 #define WIFI_CONNECTED_BIT BIT0
@@ -41,11 +47,17 @@ static void event_handler(void* arg, esp_event_base_t event_base, int32_t event_
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STACONNECTED) {
+        wifi_event_ap_staconnected_t* event = (wifi_event_ap_staconnected_t*) event_data;
+        ESP_LOGI(TAG, "station "MACSTR" joined %s, AID=%d", MAC2STR(event->mac), AP_SSID, event->aid);
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
+        wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
+        ESP_LOGI(TAG, "station "MACSTR" left %s, AID=%d", MAC2STR(event->mac), AP_SSID, event->aid);
     }
 }
 
 
-void wifi_init_sta(void)
+void wifi_init_apsta(void)
 {
     s_wifi_event_group = xEventGroupCreate();
 
@@ -53,6 +65,7 @@ void wifi_init_sta(void)
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     esp_netif_create_default_wifi_sta();
+    esp_netif_create_default_wifi_ap();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -82,11 +95,28 @@ void wifi_init_sta(void)
             .threshold.authmode = WIFI_AUTH_WPA2_PSK,
         },
     };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
+    wifi_config_t ap_config = {
+        .ap = {
+            .ssid = AP_SSID,
+            .ssid_len = strlen(AP_SSID),
+            .channel = 1,
+            .password = AP_PASS,
+            .max_connection = AP_MAX_CONN,
+            .authmode = WIFI_AUTH_WPA2_PSK,
+            .pmf_cfg = {
+                .required = false,
+            },
+        },
+    };
+    if (strlen(AP_PASS) == 0) {
+        ap_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
+    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
 
-    ESP_LOGI(TAG, "wifi_init_sta finished.");
+    ESP_LOGI(TAG, "wifi_init_apsta finished. Pedal WiFi: %s", AP_SSID);
 
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */

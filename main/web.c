@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "esp_log.h"
 #include "esp_http_server.h"
+#include "mdns.h"
 
 #define TAG "WEB"
 #define WEB_MAX_CLIENTS 7
@@ -98,8 +99,17 @@ void web_broadcast(const char *text) // source: Github esp-idf/examples/protocol
 static const httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler };
 static const httpd_uri_t ws_uri = { .uri = "/ws", .method = HTTP_GET, .handler = ws_handler, .is_websocket = true };
 
+static void mdns_start(void) // source: Github espressif/esp-protocols/components/mdns/examples
+{
+    ESP_ERROR_CHECK(mdns_init());
+    mdns_hostname_set("pedal");                          // http://pedal.local
+    mdns_instance_name_set("GuitarFX");
+    mdns_service_add(NULL, "_http", "_tcp", 80, NULL, 0);
+}
+
 void web_init(void) // source: Github esp-idf/examples/protocols/http_server/ws_echo_server
 {
+    mdns_start();
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_open_sockets = WEB_MAX_CLIENTS;
     config.lru_purge_enable = true;             // phone asleep -> old socket gets reused

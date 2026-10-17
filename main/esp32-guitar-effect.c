@@ -84,8 +84,8 @@ void app_main(void)
 
     // WiFi section
     ssd1306_display_text(&dev, 3, "WiFi:  ...", 9, false);
-    ESP_LOGI(TAG, "WiFi MODE STA (station)");
-    wifi_init_sta();
+    ESP_LOGI(TAG, "WiFi MODE APSTA (home WiFi + pedal WiFi)");
+    wifi_init_apsta();
     ssd1306_display_text(&dev, 3, "WiFi: OK", 8, false);
 
     // Web server section (panel: http://<ESP32 IP>/)
