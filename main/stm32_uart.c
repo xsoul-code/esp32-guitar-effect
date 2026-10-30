@@ -1,5 +1,6 @@
 #include "include/stm32_uart.h"
 #include "include/web.h"
+#include "include/knobs.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -20,7 +21,7 @@
 
 static volatile TickType_t last_rx_tick = 0;
 
-volatile stm32_state_t stm32_state = { -1, -1, -1, -1, -1 };
+volatile stm32_state_t stm32_state = { -1, -1, -1, -1, -1, -1 };
 stm32_change_t stm32_last_change;
 static char last_set_name[24];      // name from the last SET, its VAL goes to stm32_last_change
 
@@ -36,6 +37,7 @@ void stm32_uart_init(void) // UART initializaion (ESP-IDF GitHub see references 
     };
     ESP_ERROR_CHECK(uart_param_config(STM32_UART, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(STM32_UART, UART_TX, UART_RX, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+    gpio_set_pull_mode(UART_RX, GPIO_PULLUP_ONLY);     // IDF v6 uart_set_pin() no longer does it, RX floats while STM32 resets
     ESP_ERROR_CHECK(uart_driver_install(STM32_UART, RX_BUF_SIZE * 2, RX_BUF_SIZE, 0, NULL, 0));
 }
 
@@ -49,9 +51,9 @@ int stm32_send(const char *cmd) // protocol: docs/UART_PROTOCOL.md
     return uart_write_bytes(STM32_UART, buf, len);
 }
 
-bool stm32_online(void) // any line from STM32 in last 3 s
+bool stm32_online(void) // any line from STM32 in last 5 s
 {
-    return last_rx_tick != 0 && (xTaskGetTickCount() - last_rx_tick) < pdMS_TO_TICKS(3000);
+    return last_rx_tick != 0 && (xTaskGetTickCount() - last_rx_tick) < pdMS_TO_TICKS(5000);
 }
 
 static void stm32_update_state(const char *args) // "<name> <value>" -> mirror for OLED
@@ -64,6 +66,7 @@ static void stm32_update_state(const char *args) // "<name> <value>" -> mirror f
     else if (strcmp(name, "fx_chorus") == 0) stm32_state.fx_chorus = value;
     else if (strcmp(name, "fx_echo") == 0) stm32_state.fx_echo = value;
     else if (strcmp(name, "fx_reverb") == 0) stm32_state.fx_reverb = value;
+    else if (strcmp(name, "fft") == 0) stm32_state.fft = value;
     else if (strcmp(name, last_set_name) == 0)     // reply to our SET -> show on OLED
     {
         strcpy(stm32_last_change.name, name);
@@ -82,11 +85,14 @@ static void stm32_handle_line(char *line)
     } else if (strncmp(line, "HELLO", 5) == 0) {
         ESP_LOGI(TAG, "STM32 restarted: %s", line);
         stm32_send("GET ALL");
+        knobs_resync();
     } else if (strncmp(line, "ERR", 3) == 0) {
         ESP_LOGW(TAG, "%s", line);
     } else if (strncmp(line, "VAL ", 4) == 0) {
         ESP_LOGI(TAG, "%s", line);
         stm32_update_state(line + 4);
+    } else if (strncmp(line, "FFT ", 4) == 0) {
+        ESP_LOGD(TAG, "%s", line);          // 10 lines/s, only forwarded to the panel
     } else {
         ESP_LOGI(TAG, "%s", line);
     }
@@ -107,6 +113,7 @@ void stm32_rx_task(void *pvParameters) // source: Github esp-idf/examples/periph
         {
             char c = data[i];
             if (c == '\r') continue;
+            if (c != '\n' && ((uint8_t)c < 0x20 || (uint8_t)c > 0x7E)) { pos = 0; too_long = false; continue; }  // noise on the line, drop the broken line
             if (c == '\n')
             {
                 line[pos] = '\0';
@@ -137,7 +144,7 @@ void stm32_ping_task(void *pvParameters)
     while(1)
     {
         stm32_send("PING");
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(2000));
 
         bool online = stm32_online();
         if (online != was_online)
@@ -145,7 +152,9 @@ void stm32_ping_task(void *pvParameters)
             ESP_LOGI(TAG, "STM32 %s", online ? "online" : "offline");
             web_broadcast(online ? "LINK up" : "LINK down");
             if (online) stm32_send("GET ALL");
+            if (online) knobs_resync();
             was_online = online;
         }
+        if (stm32_state.fft == 1 && web_client_count() == 0) stm32_send("SET fft 0");   // nobody watches the spectrum
     }
 }

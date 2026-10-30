@@ -10,6 +10,7 @@ typedef struct {
     int fx_chorus;
     int fx_echo;
     int fx_reverb;
+    int fft;
 } stm32_state_t;
 
 extern volatile stm32_state_t stm32_state;  // last values from VAL, -1 = unknown

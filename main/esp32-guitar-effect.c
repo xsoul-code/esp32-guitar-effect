@@ -13,12 +13,14 @@
 
 #include "esp_system.h"
 #include "esp_netif_sntp.h"
+#include "driver/gpio.h"
 
 #include "include/oled.h"
 #include "font8x8_basic.h"      // font from ssd1306 component, to draw single (inverted) characters
 #include "include/mqtt.h"
 #include "include/stm32_uart.h"
 #include "include/web.h"
+#include "include/knobs.h"
 
 #define TAG "Smart Guitar Effect"   // FIRMWARE TAG
 
@@ -49,6 +51,8 @@ static void clock_init(void) // source: Github esp-idf/examples/protocols/sntp
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
     esp_netif_sntp_init(&config);
 }
+
+#define BUTTON_NEXT GPIO_NUM_25          // momentary button to GND: next effect
 
 #define NO_INV "0000000000000000"
 
@@ -134,9 +138,43 @@ void ui_task(void *pvParameters)
     }
 }
 
+static void next_effect(void) // CLEAN -> DIST -> CHORUS -> ECHO -> REVERB -> CLEAN, like B1 on STM32
+{
+    const char *names[4] = {"fx_dist", "fx_chorus", "fx_echo", "fx_reverb"};
+    int fx[4] = {stm32_state.fx_dist, stm32_state.fx_chorus, stm32_state.fx_echo, stm32_state.fx_reverb};
+    int on = 0, cur = 0;            // cur: 0 = CLEAN, 1..4 = single effect
+    for (int i = 0; i < 4; i++) {
+        if (fx[i] == 1) { on++; cur = i + 1; }
+    }
+    if (on != 1) cur = 0;           // combination (e.g. from phone) -> next is DIST
+    int next = (cur + 1) % 5;
+    char line[STM32_LINE_MAX];
+    for (int i = 0; i < 4; i++) {
+        int want = (next == i + 1) ? 1 : 0;
+        if (fx[i] != want) {
+            snprintf(line, sizeof(line), "SET %s %d", names[i], want);
+            stm32_send(line);
+        }
+    }
+}
+
 void footswitch_task(void *pvParameters)
 {
-    while(1) { vTaskDelay(pdMS_TO_TICKS(1000)); }
+    gpio_config_t io_conf = {
+        .pin_bit_mask = 1ULL << BUTTON_NEXT,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
+    gpio_config(&io_conf);
+
+    uint8_t hist = 0;
+    while(1)
+    {
+        // every 10 ms, pressed = 0 V; released once then 4 x pressed = one press (~40 ms debounce)
+        hist = (uint8_t)((hist << 1) | (gpio_get_level(BUTTON_NEXT) == 0));
+        if ((hist & 0x1F) == 0x0F && stm32_online()) next_effect();
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
 void app_main(void)
@@ -189,11 +227,13 @@ void app_main(void)
     buffer1 = xQueueCreate(2, sizeof(stm32samples));
 
     // Tasks section
+    knobs_init();
     xTaskCreate(debug_monitor, "debug_monitor", 2048, NULL, 5, NULL);
     xTaskCreate(stm32_rx_task, "stm32_rx_task", 4096, NULL, 6, NULL);
     xTaskCreate(stm32_ping_task, "stm32_ping_task", 3072, NULL, 5, NULL);
     xTaskCreate(ui_task, "ui_task", 4096, NULL, 5, NULL);
-    xTaskCreate(footswitch_task, "footswitch_task", 2048, NULL, 5, NULL);
+    xTaskCreate(footswitch_task, "footswitch_task", 3072, NULL, 5, NULL);
+    xTaskCreate(knobs_task, "knobs_task", 3072, NULL, 4, NULL);
 
     // Successfull initialization loop
     while(1)
