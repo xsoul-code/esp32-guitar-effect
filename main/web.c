@@ -15,6 +15,8 @@ static httpd_handle_t server = NULL;
 
 extern const unsigned char index_html_start[] asm("_binary_index_html_start");
 extern const unsigned char index_html_end[] asm("_binary_index_html_end");
+extern const unsigned char logo_png_start[] asm("_binary_logo_png_start");
+extern const unsigned char logo_png_end[] asm("_binary_logo_png_end");
 
 struct async_resp_arg {
     httpd_handle_t hd;
@@ -26,6 +28,12 @@ static esp_err_t index_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     return httpd_resp_send(req, (const char *)index_html_start, index_html_end - index_html_start);
+}
+
+static esp_err_t logo_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "image/png");
+    return httpd_resp_send(req, (const char *)logo_png_start, logo_png_end - logo_png_start);
 }
 
 static esp_err_t ws_handler(httpd_req_t *req) // source: Github esp-idf/examples/protocols/http_server/ws_echo_server
@@ -121,6 +129,7 @@ int web_client_count(void) // number of open panels (WebSocket clients)
 }
 
 static const httpd_uri_t index_uri = { .uri = "/", .method = HTTP_GET, .handler = index_handler };
+static const httpd_uri_t logo_uri = { .uri = "/logo.png", .method = HTTP_GET, .handler = logo_handler };
 static const httpd_uri_t ws_uri = { .uri = "/ws", .method = HTTP_GET, .handler = ws_handler, .is_websocket = true };
 
 static void mdns_start(void) // source: Github espressif/esp-protocols/components/mdns/examples
@@ -140,6 +149,7 @@ void web_init(void) // source: Github esp-idf/examples/protocols/http_server/ws_
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
         httpd_register_uri_handler(server, &index_uri);
+        httpd_register_uri_handler(server, &logo_uri);
         httpd_register_uri_handler(server, &ws_uri);
     } else {
         ESP_LOGE(TAG, "Error starting server!");
