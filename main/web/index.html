@@ -1,525 +1,290 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="GuitarFX">
-<meta name="theme-color" content="#111419">
-<title>GuitarFX</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pedał efektów gitarowych DSP</title>
 <style>
-/* Served by ESP32 (no internet in SoftAP mode) - no web fonts, no libraries */
-:root {
-  --bg: #111419;
-  --bg-glass: rgba(17, 20, 25, 0.92);
-  --panel: #191d24;
-  --panel-2: #222832;
-  --line: #2c333e;
-  --fg: #e8eaef;
-  --muted: #8a92a0;
-  --led: #ff3d2e;
-  --ok: #46c97a;
-  --warn: #f0a531;
-  --steel-1: #4a525e;
-  --steel-2: #1c2129;
-  --dist: #f2862b;
-  --chorus: #56c2e0;
-  --echo: #9cc96b;
-  --reverb: #8a96ff;
-  --main: #c9ced8;
-  --on-fx: #111419;
-  --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  color-scheme: dark;
-}
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
 body {
-  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--ui); font-size: 15px; line-height: 1.4;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  margin: 0;
+  background: #ffffff;
+  color: #333333;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 15px;
 }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
-
-.wrap {
-  max-width: 560px; margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 16px 40px;
-  display: grid; gap: 18px;
+#top {
+  background: #003571;
+  color: #ffffff;
+  padding: 14px 16px;
 }
-
-.top {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
-  background: var(--bg-glass); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--line);
+#top h1 { margin: 0; font-size: 22px; }
+#top p { margin: 4px 0 0 0; font-size: 14px; }
+#main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 16px;
 }
-.top-in {
-  max-width: 560px; margin: 0 auto;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 10px;
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-}
-.brand { display: grid; gap: 1px; min-width: 0; }
-.brand b { font-size: 17px; letter-spacing: 0.12em; text-transform: uppercase; }
-.brand small { color: var(--muted); font-family: var(--mono); font-size: 11px; }
-.pills { display: flex; gap: 6px; }
-.pill {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px;
-  font-size: 12px; font-weight: 600; letter-spacing: 0.04em; color: var(--muted);
-}
-.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.pill.ok .dot { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-.pill.bad { color: var(--warn); border-color: var(--warn); }
-.pill.bad .dot { background: var(--warn); }
-
 h2 {
-  margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--muted);
+  color: #003571;
+  font-size: 18px;
+  border-bottom: 1px solid #003571;
+  padding-bottom: 3px;
+  margin: 24px 0 8px 0;
 }
-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 18px; }
-fieldset:disabled { opacity: 0.45; }
-
-.banner {
-  margin: 0; padding: 10px 12px; border: 1px solid var(--warn); border-radius: 10px;
-  color: var(--warn); font-size: 13px;
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+td { padding: 4px 4px; vertical-align: middle; }
+td:first-child { width: 40%; }
+td:last-child { width: 5em; text-align: right; white-space: nowrap; }
+input[type=range] { width: 100%; margin: 0; }
+button {
+  background: #ffffff;
+  color: #003571;
+  border: 1px solid #003571;
+  padding: 6px 12px;
+  margin: 0 6px 6px 0;
+  font-size: 15px;
+  cursor: pointer;
 }
-.banner code { font-family: var(--mono); }
-.wait { margin: 0; color: var(--muted); font-size: 14px; }
-
-.master {
-  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 18px; align-items: center;
-  background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+button.on { background: #003571; color: #ffffff; }
+select { font-size: 15px; padding: 3px; }
+canvas { display: block; width: 100%; height: 200px; border: 1px solid #cccccc; }
+#footer {
+  border-top: 1px solid #cccccc;
+  margin-top: 30px;
+  padding: 10px 0 20px 0;
+  color: #777777;
+  font-size: 13px;
 }
-.foot-wrap { display: grid; justify-items: center; gap: 8px; }
-.foot {
-  width: 86px; height: 86px; border-radius: 50%; border: 0; cursor: pointer; position: relative;
-  background: radial-gradient(circle at 35% 30%, var(--steel-1), var(--steel-2) 70%);
-  box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.5), 0 3px 0 var(--steel-2);
-}
-.foot:active { transform: translateY(2px); box-shadow: inset 0 -2px 6px rgba(0, 0, 0, 0.5), 0 1px 0 var(--steel-2); }
-.foot::after {
-  content: ""; position: absolute; inset: 24px; border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, var(--steel-1), var(--steel-2));
-  border: 1px solid var(--line);
-}
-.led { width: 10px; height: 10px; border-radius: 50%; background: #3a1612; border: 1px solid #000; }
-.led.on { background: var(--led); box-shadow: 0 0 8px var(--led), 0 0 2px #fff inset; }
-.foot-label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; }
-.foot-state { font-size: 12px; color: var(--muted); text-align: center; max-width: 100px; }
-.stack { display: grid; gap: 14px; min-width: 0; }
-
-.fx-area { display: grid; gap: 10px; transition: opacity 0.15s; }
-.fx-area.bypassed { opacity: 0.5; }
-.fx-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-@media (min-width: 520px) { .fx-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-.fx {
-  position: relative; text-align: left; cursor: pointer;
-  min-height: 92px; padding: 14px 12px 12px; border-radius: 12px;
-  background: var(--panel); color: var(--fg); border: 1px solid var(--line);
-  display: grid; align-content: end; gap: 2px; font: inherit; overflow: hidden;
-}
-.fx::before { content: ""; position: absolute; inset: 0 0 auto; height: 6px; background: var(--fx); }
-.fx .led { position: absolute; top: 14px; right: 12px; }
-.fx-name { font-weight: 800; font-size: 16px; letter-spacing: 0.1em; }
-.fx-sub { font-size: 12px; color: var(--muted); }
-.fx[aria-pressed="true"] { background: var(--fx); color: var(--on-fx); border-color: var(--fx); }
-.fx[aria-pressed="true"] .fx-sub { color: var(--on-fx); opacity: 0.75; }
-.hint { margin: 0; font-size: 12px; color: var(--muted); }
-
-.sec {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-  border-top: 3px solid var(--fx, var(--main));
-}
-.sec > summary {
-  list-style: none; cursor: pointer; padding: 12px 14px;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-}
-.sec > summary::-webkit-details-marker { display: none; }
-.sec-title { font-weight: 700; letter-spacing: 0.06em; }
-.sec-title small { color: var(--muted); font-weight: 500; letter-spacing: 0; margin-left: 6px; }
-.badge {
-  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 999px;
-  border: 1px solid var(--line); color: var(--muted);
-}
-.badge.on { background: var(--fx); color: var(--on-fx); border-color: var(--fx); }
-.sec-body { padding: 4px 14px 14px; display: grid; gap: 14px; }
-.sec > summary .chev { color: var(--muted); transition: transform 0.15s; }
-.sec[open] > summary .chev { transform: rotate(90deg); }
-
-.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: baseline; }
-.row label { font-size: 14px; }
-.row output { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; transition: opacity 0.1s; }
-.row output.pending { opacity: 0.45; }
-.row input[type="range"] { grid-column: 1 / -1; width: 100%; margin: 0; height: 28px; accent-color: var(--fx, var(--main)); }
-.row.toggle { align-items: center; }
-.row.toggle input { width: 22px; height: 22px; accent-color: var(--fx, var(--main)); margin: 0; }
-
-.spectrum { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px 14px; display: grid; gap: 10px; }
-.spec-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.btn {
-  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
-  padding: 7px 14px; border-radius: 10px; border: 1px solid var(--line);
-  background: var(--panel-2); color: var(--fg);
-}
-.btn[aria-pressed="true"] { background: var(--ok); color: var(--on-fx); border-color: var(--ok); }
-#fft { width: 100%; height: 180px; display: block; }
-
-.console { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
-.console > summary { cursor: pointer; padding: 12px 14px; font-weight: 700; display: flex; justify-content: space-between; gap: 10px; }
-.console > summary span { color: var(--muted); font-weight: 500; font-family: var(--mono); font-size: 12px; }
-.log {
-  list-style: none; margin: 0; padding: 0 14px 12px; max-height: 240px; overflow: auto;
-  font-family: var(--mono); font-size: 12px; line-height: 1.6;
-}
-.log li { white-space: pre-wrap; word-break: break-all; }
-.log .tx { color: var(--muted); }
-.log .rx { color: var(--chorus); }
-.log .err { color: var(--warn); }
-
-footer { font-size: 12px; color: var(--muted); }
-
-button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--main); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 
-<header class="top">
-  <div class="top-in">
-    <div class="brand">
-      <b>GuitarFX</b>
-      <small id="host">pedal.local</small>
-    </div>
-    <div class="pills">
-      <span class="pill bad" id="pill-esp"><span class="dot"></span>ESP32</span>
-      <span class="pill bad" id="pill-stm"><span class="dot"></span>STM32</span>
-    </div>
-  </div>
-</header>
+<div id="top">
+  <h1>Pedał efektów gitarowych DSP</h1>
+  <p>Panel sterowania ESP32</p>
+</div>
 
-<main class="wrap">
-  <p class="banner" id="offline" hidden></p>
-  <p class="wait" id="wait">Łączenie z efektem…</p>
+<div id="main">
 
-  <fieldset id="controls" disabled>
-    <section class="master" style="--fx: var(--main)">
-      <div class="foot-wrap" id="foot" hidden>
-        <span class="led" id="led-master"></span>
-        <button class="foot" id="bypass" aria-pressed="false" aria-label="Bypass"></button>
-        <span class="foot-label">Bypass</span>
-        <span class="foot-state" id="bypass-state"></span>
-      </div>
-      <div class="stack" data-group="main"></div>
-    </section>
+<p>ESP32: <b id="esp">brak połączenia</b> &nbsp;&nbsp; STM32: <b id="stm">offline</b></p>
 
-    <div class="fx-area" id="fx-area">
-      <h2>Efekty</h2>
-      <div class="fx-grid" id="fx-grid" hidden>
-        <button class="fx" data-fx="fx_dist" style="--fx: var(--dist)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">DIST</span><span class="fx-sub">Przester</span></button>
-        <button class="fx" data-fx="fx_chorus" style="--fx: var(--chorus)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">CHORUS</span><span class="fx-sub">Chorus</span></button>
-        <button class="fx" data-fx="fx_echo" style="--fx: var(--echo)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">ECHO</span><span class="fx-sub">Echo</span></button>
-        <button class="fx" data-fx="fx_reverb" style="--fx: var(--reverb)" aria-pressed="false" hidden><span class="led"></span><span class="fx-name">REVERB</span><span class="fx-sub">Pogłos</span></button>
-      </div>
-      <p class="hint" id="fx-hint" hidden>Dotknij efektu, żeby go włączyć. Efekty można łączyć. Echo i pogłos po wyłączeniu wybrzmiewają, bypass wycina wszystko od razu.</p>
-    </div>
+<h2>Efekty</h2>
+<p>
+  <button id="bypass" onclick="toggle('bypass')">Bypass</button>
+  <button id="fx_dist" onclick="toggle('fx_dist')">Distortion</button>
+  <button id="fx_chorus" onclick="toggle('fx_chorus')">Chorus</button>
+  <button id="fx_echo" onclick="toggle('fx_echo')">Echo</button>
+  <button id="fx_reverb" onclick="toggle('fx_reverb')">Reverb</button>
+</p>
 
-    <details class="sec" style="--fx: var(--dist)" data-sec="dist" hidden open>
-      <summary><span class="sec-title">DIST<small>przester</small></span><span><span class="badge" data-badge="fx_dist" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
-      <div class="sec-body" data-group="dist"></div>
-    </details>
-    <details class="sec" style="--fx: var(--chorus)" data-sec="chorus" hidden>
-      <summary><span class="sec-title">CHORUS</span><span><span class="badge" data-badge="fx_chorus" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
-      <div class="sec-body" data-group="chorus"></div>
-    </details>
-    <details class="sec" style="--fx: var(--echo)" data-sec="echo" hidden>
-      <summary><span class="sec-title">ECHO</span><span><span class="badge" data-badge="fx_echo" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
-      <div class="sec-body" data-group="echo"></div>
-    </details>
-    <details class="sec" style="--fx: var(--reverb)" data-sec="reverb" hidden>
-      <summary><span class="sec-title">REVERB<small>pogłos</small></span><span><span class="badge" data-badge="fx_reverb" hidden>WYŁ</span> <span class="chev">›</span></span></summary>
-      <div class="sec-body" data-group="reverb"></div>
-    </details>
-    <details class="sec" style="--fx: var(--main)" data-sec="eq" hidden open>
-      <summary><span class="sec-title">EQ<small>3 pasma</small></span><span class="chev">›</span></summary>
-      <div class="sec-body" data-group="eq"></div>
-    </details>
+<h2>Ogólne</h2>
+<table>
+<tr><td>Głośność</td><td><input type="range" id="volume" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_volume">-</td></tr>
+<tr><td>Wzmocnienie czystego toru</td><td><input type="range" id="clean_gain" min="0" max="64" step="0.5" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_clean_gain">-</td></tr>
+<tr><td>Czułość wejścia kodeka</td><td><input type="range" id="linvol" min="0" max="23" step="1" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_linvol">-</td></tr>
+</table>
 
-    <section class="spectrum" id="spectrum" hidden>
-      <div class="spec-head">
-        <h2>Widmo wyjścia</h2>
-        <button class="btn" id="fft-btn" aria-pressed="false">Włącz</button>
-      </div>
-      <canvas id="fft" aria-label="Widmo sygnału wyjściowego, 16 pasm"></canvas>
-      <p class="hint">16 pasm od 94 Hz do 24 kHz, poziom w dBFS, odświeżanie 10 razy na sekundę.</p>
-    </section>
-  </fieldset>
+<h2>Korekcja</h2>
+<table>
+<tr><td>Niskie 100 Hz</td><td><input type="range" id="eq_low_db" min="-12" max="12" step="0.5" oninput="slide(this)" onchange="slideEnd(this)"></td><td><span id="v_eq_low_db">-</span> dB</td></tr>
+<tr><td>Środek 800 Hz</td><td><input type="range" id="eq_mid_db" min="-12" max="12" step="0.5" oninput="slide(this)" onchange="slideEnd(this)"></td><td><span id="v_eq_mid_db">-</span> dB</td></tr>
+<tr><td>Wysokie 3,5 kHz</td><td><input type="range" id="eq_high_db" min="-12" max="12" step="0.5" oninput="slide(this)" onchange="slideEnd(this)"></td><td><span id="v_eq_high_db">-</span> dB</td></tr>
+</table>
 
-  <details class="console">
-    <summary>Ruch na łączu <span id="count">0 linii</span></summary>
-    <ol class="log" id="log"></ol>
-  </details>
+<h2>Distortion</h2>
+<table>
+<tr><td>Drive</td><td><input type="range" id="drive" min="1" max="200" step="1" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_drive">-</td></tr>
+<tr><td>Próg obcinania</td><td><input type="range" id="clip_level" min="100" max="30000" step="100" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_clip_level">-</td></tr>
+</table>
 
-  <footer>GuitarFX · ESP32 ↔ STM32 (UART) · protokół: docs/UART_PROTOCOL.md</footer>
-</main>
+<h2>Chorus</h2>
+<table>
+<tr><td>Częstotliwość LFO</td><td><input type="range" id="chorus_rate_hz" min="0.05" max="5" step="0.05" oninput="slide(this)" onchange="slideEnd(this)"></td><td><span id="v_chorus_rate_hz">-</span> Hz</td></tr>
+<tr><td>Głębokość</td><td><input type="range" id="chorus_depth" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_chorus_depth">-</td></tr>
+<tr><td>Miks</td><td><input type="range" id="chorus_mix" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_chorus_mix">-</td></tr>
+<tr><td>Opóźnienie</td><td><input type="range" id="chorus_delay_ms" min="5" max="25" step="0.5" oninput="slide(this)" onchange="slideEnd(this)"></td><td><span id="v_chorus_delay_ms">-</span> ms</td></tr>
+<tr><td>Sprzężenie zwrotne</td><td><input type="range" id="chorus_feedback" min="0" max="0.7" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_chorus_feedback">-</td></tr>
+<tr><td>Kształt LFO</td><td><input type="range" id="chorus_shape" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_chorus_shape">-</td></tr>
+<tr><td>Barwa</td><td><input type="range" id="chorus_tone" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_chorus_tone">-</td></tr>
+<tr><td>Stereo</td><td><input type="checkbox" id="chorus_stereo" onchange="send('SET chorus_stereo ' + (this.checked ? 1 : 0))"></td><td></td></tr>
+</table>
+
+<h2>Echo</h2>
+<table>
+<tr><td>Czas opóźnienia</td><td><input type="range" id="echo_time_ms" min="20" max="1000" step="10" oninput="slide(this)" onchange="slideEnd(this)"></td><td><span id="v_echo_time_ms">-</span> ms</td></tr>
+<tr><td>Sprzężenie zwrotne</td><td><input type="range" id="echo_feedback" min="0" max="0.95" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_echo_feedback">-</td></tr>
+<tr><td>Miks</td><td><input type="range" id="echo_mix" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_echo_mix">-</td></tr>
+<tr><td>Barwa</td><td><input type="range" id="echo_tone" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_echo_tone">-</td></tr>
+<tr><td>Modulacja</td><td><input type="range" id="echo_mod" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_echo_mod">-</td></tr>
+</table>
+
+<h2>Reverb</h2>
+<table>
+<tr><td>Miks</td><td><input type="range" id="reverb_mix" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_reverb_mix">-</td></tr>
+<tr><td>Czas zaniku</td><td><input type="range" id="reverb_decay" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_reverb_decay">-</td></tr>
+<tr><td>Tłumienie</td><td><input type="range" id="reverb_damping" min="0" max="1" step="0.01" oninput="slide(this)" onchange="slideEnd(this)"></td><td id="v_reverb_damping">-</td></tr>
+<tr><td>Wstępne opóźnienie</td><td><input type="range" id="reverb_predelay_ms" min="0" max="100" step="1" oninput="slide(this)" onchange="slideEnd(this)"></td><td><span id="v_reverb_predelay_ms">-</span> ms</td></tr>
+</table>
+
+<h2>Pokrętło makro</h2>
+<p>
+  <select id="knob" onchange="send('KNOB ' + this.value)">
+    <option value="off">wyłączone</option>
+    <option value="reverb_mix">Reverb - miks</option>
+    <option value="reverb_decay">Reverb - czas zaniku</option>
+    <option value="echo_mix">Echo - miks</option>
+    <option value="echo_time_ms">Echo - czas opóźnienia</option>
+    <option value="echo_feedback">Echo - sprzężenie zwrotne</option>
+    <option value="chorus_mix">Chorus - miks</option>
+    <option value="chorus_depth">Chorus - głębokość</option>
+    <option value="chorus_rate_hz">Chorus - częstotliwość LFO</option>
+    <option value="clip_level">Distortion - próg obcinania</option>
+    <option value="clean_gain">Wzmocnienie czystego toru</option>
+  </select>
+</p>
+<p>Szóste pokrętło (GPIO33) steruje wybranym parametrem, a wybór jest zapamiętywany po wyłączeniu zasilania.</p>
+
+<h2>Widmo sygnału</h2>
+<p><button id="fft" onclick="toggle('fft')">Włącz</button></p>
+<canvas id="spectrum"></canvas>
+
+<p>Ostatni komunikat: <span id="lastmsg">-</span></p>
+
+<div id="footer">Praca inżynierska - sterowanie procesorem efektów gitarowych (ESP32 + STM32)</div>
+
+</div>
 
 <script>
-const PCT = v => Math.round(v * 100) + '%';
-const DB = v => (v > 0 ? '+' : '') + v.toFixed(1) + ' dB';
-const SHAPE = v => v < 0.05 ? 'sinus' : v > 0.95 ? 'trójkąt' : Math.round(v * 100) + '% trójkąt';
+var ws = null;
+var values = {};
+var lastSend = {};
+var lastTouch = {};
+var bands = ['94', '188', '281', '375', '469', '600', '850', '1.2k',
+             '1.8k', '2.5k', '3.5k', '5k', '7k', '10k', '14k', '20k'];
 
-// name, group, label, type, min, max, format, log scale
-// a control is shown only after STM32 reports it with VAL (protocol v2)
-const P = [
-  ['bypass', '-', 'Bypass', 'i', 0, 1],
-  ['fx_dist', '-', 'DIST', 'i', 0, 1],
-  ['fx_chorus', '-', 'CHORUS', 'i', 0, 1],
-  ['fx_echo', '-', 'ECHO', 'i', 0, 1],
-  ['fx_reverb', '-', 'REVERB', 'i', 0, 1],
-  ['volume', 'main', 'Głośność', 'f', 0, 1, PCT],
-  ['eq_low_db', 'eq', 'Niskie · 100 Hz', 'f', -12, 12, DB],
-  ['eq_mid_db', 'eq', 'Środek · 800 Hz', 'f', -12, 12, DB],
-  ['eq_high_db', 'eq', 'Wysokie · 3.5 kHz', 'f', -12, 12, DB],
-  ['clean_gain', 'main', 'Wzmocnienie czystego toru', 'f', 0, 64, v => '×' + v.toFixed(1)],
-  ['drive', 'dist', 'Drive', 'f', 1, 200, v => '×' + Math.round(v), true],
-  ['clip_level', 'dist', 'Próg obcinania', 'f', 100, 30000, v => String(Math.round(v)), true],
-  ['chorus_rate_hz', 'chorus', 'Rate', 'f', 0.05, 5, v => v.toFixed(2) + ' Hz', true],
-  ['chorus_depth', 'chorus', 'Głębokość', 'f', 0, 1, PCT],
-  ['chorus_mix', 'chorus', 'Mix', 'f', 0, 1, PCT],
-  ['chorus_delay_ms', 'chorus', 'Opóźnienie', 'f', 5, 25, v => v.toFixed(1) + ' ms'],
-  ['chorus_feedback', 'chorus', 'Feedback', 'f', 0, 0.7, PCT],
-  ['chorus_stereo', 'chorus', 'Stereo (różne głosy L/P)', 'i', 0, 1],
-  ['chorus_shape', 'chorus', 'Kształt LFO', 'f', 0, 1, SHAPE],
-  ['chorus_tone', 'chorus', 'Barwa', 'f', 0, 1, PCT],
-  ['echo_time_ms', 'echo', 'Czas', 'f', 20, 1000, v => Math.round(v) + ' ms', true],
-  ['echo_feedback', 'echo', 'Powtórzenia', 'f', 0, 0.95, PCT],
-  ['echo_mix', 'echo', 'Mix', 'f', 0, 1, PCT],
-  ['echo_tone', 'echo', 'Barwa', 'f', 0, 1, PCT],
-  ['echo_mod', 'echo', 'Modulacja', 'f', 0, 1, PCT],
-  ['reverb_mix', 'reverb', 'Mix', 'f', 0, 1, PCT],
-  ['reverb_decay', 'reverb', 'Zanik (RT60)', 'f', 0, 1, v => (0.4 * Math.pow(50, v)).toFixed(1) + ' s'],
-  ['reverb_damping', 'reverb', 'Tłumienie', 'f', 0, 1, PCT],
-  ['reverb_predelay_ms', 'reverb', 'Pre-delay', 'f', 0, 100, v => Math.round(v) + ' ms'],
-  ['linvol', 'main', 'Wejście kodeka', 'i', 0, 23, v => (-34.5 + 1.5 * v).toFixed(1) + ' dB'],
-  ['fft', '-', 'Widmo', 'i', 0, 1],
-].map(([n, g, label, t, min, max, f, log]) => ({ n, g, label, t, min, max, f, log: !!log }));
-const byName = Object.fromEntries(P.map(p => [p.n, p]));
-const FX = ['fx_dist', 'fx_chorus', 'fx_echo', 'fx_reverb'];
-const FX_GROUP = { fx_dist: 'dist', fx_chorus: 'chorus', fx_echo: 'echo', fx_reverb: 'reverb' };
-
-const state = {};          // values confirmed by STM32 (VAL)
-const touched = {};        // last local slider move, so a VAL does not fight the finger
-const rows = {};
-let wsOpen = false, linkUp = false;
-
-/* ---------- console ---------- */
-const logEl = document.getElementById('log');
-let lines = 0;
-function log(cls, text) {
-  const li = document.createElement('li');
-  li.className = cls;
-  li.textContent = (cls === 'tx' ? '→ ' : '← ') + text;
-  logEl.appendChild(li);
-  while (logEl.children.length > 80) logEl.firstChild.remove();
-  logEl.scrollTop = logEl.scrollHeight;
-  document.getElementById('count').textContent = ++lines + ' linii';
-}
-
-/* ---------- WebSocket to ESP32 ---------- */
-let ws;
 function connect() {
   ws = new WebSocket('ws://' + location.host + '/ws');
-  ws.onopen = () => { wsOpen = true; updateStatus(); resetPanel(); send('GET ALL'); if (fftWanted) send('SET fft 1'); };
-  ws.onclose = () => { wsOpen = false; updateStatus(); setTimeout(connect, 2000); };   // iPhone after screen lock
-  ws.onmessage = e => e.data.split('\n').forEach(l => l && panelRx(l));
-}
-function send(line) {
-  log('tx', line);
-  if (ws && ws.readyState === 1) ws.send(line);
-}
-
-function panelRx(line) {
-  const t = line.split(' ');
-  if (t[0] === 'LINK') { linkUp = t[1] === 'up'; updateStatus(); return; }
-  if (t[0] === 'FFT') { for (let i = 0; i < 16; i++) fftNow[i] = +t[i + 1] || 0; fftStart(); return; }   // not logged, 10 lines/s
-  log(t[0] === 'ERR' ? 'err' : 'rx', line);
-  if (t[0] === 'HELLO') {                  // STM32 restarted, maybe with other firmware, fft back to 0
-    resetPanel();
-    if (fftWanted) send('SET fft 1');
-  }
-  if (t[0] === 'VAL' && byName[t[1]]) {
-    state[t[1]] = parseFloat(t[2]);
-    render(byName[t[1]]);
-    document.getElementById('wait').hidden = true;
-  }
-}
-
-function resetPanel() {
-  for (const k in state) delete state[k];
-  Object.values(rows).forEach(r => r.hidden = true);
-  document.querySelectorAll('[data-sec], .fx, [data-badge]').forEach(e => e.hidden = true);
-  ['fx-grid', 'fx-hint', 'foot', 'spectrum'].forEach(id => document.getElementById(id).hidden = true);
-  document.getElementById('wait').hidden = false;
-}
-
-function updateStatus() {
-  const pe = document.getElementById('pill-esp'), ps = document.getElementById('pill-stm');
-  pe.classList.toggle('ok', wsOpen); pe.classList.toggle('bad', !wsOpen);
-  ps.classList.toggle('ok', wsOpen && linkUp); ps.classList.toggle('bad', !(wsOpen && linkUp));
-  const banner = document.getElementById('offline');
-  if (!wsOpen) {
-    banner.textContent = 'Brak połączenia z ESP32. Łączę ponownie…';
-  } else if (!linkUp) {
-    banner.innerHTML = 'STM32 nie odpowiada na PING. Sprawdź przewody UART: <code>GPIO17 → PD9</code>, <code>GPIO16 ← PD8</code>, GND.';
-  }
-  banner.hidden = wsOpen && linkUp;
-  document.getElementById('controls').disabled = !(wsOpen && linkUp);
-}
-
-const lastSent = {}, timers = {};
-function queueSet(p, v) {          // max ~12 SET/s per slider while dragging
-  const go = () => { lastSent[p.n] = performance.now(); send(`SET ${p.n} ${p.t === 'i' ? String(v) : v.toFixed(3)}`); };
-  clearTimeout(timers[p.n]);
-  const dt = performance.now() - (lastSent[p.n] || 0);
-  if (dt > 80) go(); else timers[p.n] = setTimeout(go, 80 - dt);
-}
-
-const toSlider = (p, v) => p.t === 'i' ? v : p.log ? 1000 * Math.log(v / p.min) / Math.log(p.max / p.min) : 1000 * (v - p.min) / (p.max - p.min);
-const fromSlider = (p, s) => p.t === 'i' ? Math.round(s) : p.log ? p.min * Math.pow(p.max / p.min, s / 1000) : p.min + (p.max - p.min) * s / 1000;
-
-/* build slider rows from the table, hidden until STM32 reports the parameter */
-for (const p of P) {
-  const box = document.querySelector(`[data-group="${p.g}"]`);
-  if (!box) continue;
-  const row = document.createElement('div');
-  row.hidden = true;
-  if (p.n === 'chorus_stereo') {
-    row.className = 'row toggle';
-    row.innerHTML = `<label for="s-${p.n}">${p.label}</label><input type="checkbox" id="s-${p.n}">`;
-    row.querySelector('input').addEventListener('change', e => queueSet(p, e.target.checked ? 1 : 0));
-  } else {
-    row.className = 'row';
-    const max = p.t === 'i' ? p.max : 1000;
-    const min = p.t === 'i' ? p.min : 0;
-    row.innerHTML = `<label for="s-${p.n}">${p.label}</label><output id="o-${p.n}" for="s-${p.n}">—</output>` +
-      `<input type="range" id="s-${p.n}" min="${min}" max="${max}" step="1">`;
-    const input = row.querySelector('input'), out = row.querySelector('output');
-    input.addEventListener('input', () => {
-      touched[p.n] = performance.now();
-      const v = fromSlider(p, +input.value);
-      out.textContent = p.f(v);
-      out.classList.add('pending');
-      queueSet(p, v);
-    });
-  }
-  box.appendChild(row);
-  rows[p.n] = row;
-}
-
-function showSection(group) {
-  const sec = document.querySelector(`[data-sec="${group}"]`);
-  if (sec) sec.hidden = false;
-}
-
-function render(p) {
-  const v = state[p.n];
-  if (p.n === 'fft') {
-    document.getElementById('spectrum').hidden = false;
-    const b = document.getElementById('fft-btn');
-    b.setAttribute('aria-pressed', v ? 'true' : 'false');
-    b.textContent = v ? 'Wyłącz' : 'Włącz';
-    fftStart();
-  } else if (p.n === 'bypass') {
-    document.getElementById('foot').hidden = false;
-    document.getElementById('bypass').setAttribute('aria-pressed', v ? 'true' : 'false');
-    document.getElementById('led-master').classList.toggle('on', !v);
-    document.getElementById('bypass-state').textContent = v ? 'Bypass: czysty sygnał' : 'Efekty aktywne';
-    document.getElementById('fx-area').classList.toggle('bypassed', !!v);
-    FX.forEach(f => state[f] !== undefined && render(byName[f]));
-  } else if (FX.includes(p.n)) {
-    document.getElementById('fx-grid').hidden = false;
-    document.getElementById('fx-hint').hidden = false;
-    const tile = document.querySelector(`[data-fx="${p.n}"]`);
-    tile.hidden = false;
-    tile.setAttribute('aria-pressed', v ? 'true' : 'false');
-    tile.querySelector('.led').classList.toggle('on', !!v && !state.bypass);
-    const badge = document.querySelector(`[data-badge="${p.n}"]`);
-    badge.hidden = false;
-    badge.textContent = v ? 'WŁ' : 'WYŁ';
-    badge.classList.toggle('on', !!v);
-    showSection(FX_GROUP[p.n]);
-  } else if (rows[p.n]) {
-    rows[p.n].hidden = false;
-    showSection(p.g);
-    if (p.n === 'chorus_stereo') {
-      document.getElementById('s-chorus_stereo').checked = !!v;
-    } else {
-      const out = document.getElementById('o-' + p.n);
-      out.textContent = p.f(v);
-      out.classList.remove('pending');
-      if (performance.now() - (touched[p.n] || 0) > 400) document.getElementById('s-' + p.n).value = toSlider(p, v);
+  ws.onopen = function () {
+    document.getElementById('esp').textContent = 'połączono';
+    send('GET ALL');
+  };
+  ws.onclose = function () {
+    document.getElementById('esp').textContent = 'brak połączenia';
+    document.getElementById('stm').textContent = 'offline';
+    setTimeout(connect, 2000);
+  };
+  ws.onmessage = function (e) {
+    var lines = e.data.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i] != '') handleLine(lines[i]);
     }
+  };
+}
+
+function send(text) {
+  if (ws && ws.readyState == WebSocket.OPEN) ws.send(text);
+}
+
+function sendValue(name, v) {
+  if (name == 'linvol') send('SET ' + name + ' ' + Math.round(v));
+  else send('SET ' + name + ' ' + v.toFixed(3));
+}
+
+function slide(el) {
+  var now = Date.now();
+  lastTouch[el.id] = now;
+  if (!lastSend[el.id] || now - lastSend[el.id] >= 100) {
+    lastSend[el.id] = now;
+    sendValue(el.id, parseFloat(el.value));
   }
 }
 
-document.getElementById('bypass').addEventListener('click', () => queueSet(byName.bypass, state.bypass ? 0 : 1));
-document.querySelectorAll('.fx').forEach(tile => tile.addEventListener('click', () => {
-  const n = tile.dataset.fx;
-  queueSet(byName[n], state[n] ? 0 : 1);
-}));
-document.getElementById('fft-btn').addEventListener('click', () => {
-  fftWanted = !state.fft;
-  queueSet(byName.fft, fftWanted ? 1 : 0);
-});
-
-/* ---------- spectrum (FFT lines from STM32) ---------- */
-const BANDS = ['94', '188', '281', '375', '469', '600', '850', '1.2k', '1.8k', '2.5k', '3.5k', '5k', '7k', '10k', '14k', '20k'];
-const fftNow = new Array(16).fill(0), fftBar = new Array(16).fill(0), fftPeak = new Array(16).fill(0);
-let fftWanted = false, drawing = false;
-const canvas = document.getElementById('fft'), ctx = canvas.getContext('2d');
-
-function fftStart() { if (!drawing) { drawing = true; requestAnimationFrame(drawFft); } }
-
-function drawFft() {
-  const css = getComputedStyle(document.documentElement);
-  const col = n => css.getPropertyValue(n).trim();
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  if (canvas.width !== Math.round(w * dpr)) { canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr); }
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, w, h);
-
-  const top = 6, bottom = h - 18, right = w - 40;              // room for dB and band labels
-  const y = v => bottom - (bottom - top) * Math.min(1, Math.max(0, (v - 19) / 80));   // 19..99 = -80..0 dBFS
-  ctx.font = '10px ' + col('--mono');
-  ctx.strokeStyle = col('--line');
-  ctx.fillStyle = col('--muted');
-  for (const db of [0, -20, -40, -60, -80]) {
-    const gy = y(db + 99);
-    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(right, gy); ctx.stroke();
-    ctx.fillText(db + ' dB', right + 4, gy + 3);
-  }
-  const bw = right / 16;
-  let moving = false;
-  for (let i = 0; i < 16; i++) {
-    const target = state.fft ? fftNow[i] : 0;
-    fftBar[i] += 0.3 * (target - fftBar[i]);                     // smooth 10 Hz data to screen rate
-    fftPeak[i] = Math.max(fftPeak[i] - 0.25, fftBar[i]);         // falling peak marker
-    if (Math.abs(target - fftBar[i]) > 0.2 || fftPeak[i] > fftBar[i] + 0.2) moving = true;
-    const x = i * bw + 2, by = y(fftBar[i]);
-    ctx.fillStyle = col(fftBar[i] > 93 ? '--led' : fftBar[i] > 79 ? '--warn' : '--ok');
-    ctx.fillRect(x, by, bw - 4, bottom - by);
-    ctx.fillStyle = col('--fg');
-    ctx.fillRect(x, y(fftPeak[i]) - 1, bw - 4, 2);
-    if (i % 2 === 0 || w > 480) { ctx.fillStyle = col('--muted'); ctx.fillText(BANDS[i], x, h - 4); }
-  }
-  if (state.fft || moving) requestAnimationFrame(drawFft); else drawing = false;
+function slideEnd(el) {
+  lastTouch[el.id] = Date.now();
+  lastSend[el.id] = Date.now();
+  sendValue(el.id, parseFloat(el.value));
 }
 
-document.getElementById('host').textContent = location.host || 'pedal.local';
-updateStatus();
+function toggle(name) {
+  if (values[name] == 1) send('SET ' + name + ' 0');
+  else send('SET ' + name + ' 1');
+}
+
+function handleLine(line) {
+  var t = line.split(' ');
+  if (t[0] == 'VAL') {
+    showValue(t[1], parseFloat(t[2]));
+  } else if (t[0] == 'LINK') {
+    document.getElementById('stm').textContent = (t[1] == 'up') ? 'online' : 'offline';
+  } else if (t[0] == 'KNOB') {
+    document.getElementById('knob').value = t[1];
+  } else if (t[0] == 'FFT') {
+    drawSpectrum(t.slice(1));
+  } else if (t[0] == 'ERR') {
+    document.getElementById('lastmsg').textContent = line;
+  }
+}
+
+function showValue(name, v) {
+  var el = document.getElementById(name);
+  if (!el) return;
+  values[name] = v;
+
+  if (name == 'fft') {
+    el.textContent = (v == 1) ? 'Wyłącz' : 'Włącz';
+    if (v != 1) drawSpectrum(null);
+  } else if (el.tagName == 'BUTTON') {
+    el.className = (v == 1) ? 'on' : '';
+  } else if (el.type == 'checkbox') {
+    el.checked = (v == 1);
+  } else {
+    document.getElementById('v_' + name).textContent = v;
+    // do not move the slider under the user's finger
+    if (!lastTouch[name] || Date.now() - lastTouch[name] > 500) el.value = v;
+  }
+}
+
+function drawSpectrum(data) {
+  var c = document.getElementById('spectrum');
+  var ctx = c.getContext('2d');
+  c.width = c.clientWidth;
+  c.height = 200;
+
+  var left = 46, right = c.width - 6, top = 8, bottom = c.height - 20;
+  var bw = (right - left) / 16;
+  var i, y, h, db;
+
+  ctx.font = '11px Arial';
+  ctx.strokeStyle = '#cccccc';
+  ctx.fillStyle = '#555555';
+  ctx.textAlign = 'left';
+  for (db = 0; db >= -80; db -= 20) {
+    y = top + (bottom - top) * (-db / 80);
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+    ctx.fillText(db + ' dB', 4, y + 4);
+  }
+
+  ctx.textAlign = 'center';
+  for (i = 0; i < 16; i++) {
+    if (c.width > 480 || i % 2 == 0) {
+      ctx.fillStyle = '#555555';
+      ctx.fillText(bands[i], left + i * bw + bw / 2, c.height - 5);
+    }
+    if (!data) continue;
+    // FFT value is dBFS + 99: 99 = 0 dBFS, 19 = -80 dBFS
+    db = parseFloat(data[i]) - 99;
+    if (isNaN(db) || db < -80) db = -80;
+    if (db > 0) db = 0;
+    h = (bottom - top) * (db + 80) / 80;
+    ctx.fillStyle = '#003571';
+    ctx.fillRect(left + i * bw + 2, bottom - h, bw - 4, h);
+  }
+}
+
+drawSpectrum(null);
 connect();
 </script>
 </body>

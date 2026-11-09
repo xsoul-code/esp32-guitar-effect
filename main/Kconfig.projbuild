@@ -31,13 +31,3 @@ menu "WiFi Configuration"
             WPA2 password, at least 8 characters. Empty = open network.
 
 endmenu
-
-menu "MQTT Configuration"
-
-    config MQTT_BROKER_URI
-        string "MQTT Broker URI"
-        default "mqtt://192.168.1.100"
-        help
-            Full URI of the MQTT broker (e.g. mqtt://192.168.1.100 or mqtt://broker.local:1883).
-
-endmenu

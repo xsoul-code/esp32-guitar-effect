@@ -6,43 +6,20 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/queue.h"
 
 #include "include/wifi.h"
 #include "nvs_flash.h"
 
 #include "esp_system.h"
 #include "esp_netif_sntp.h"
-#include "driver/gpio.h"
 
 #include "include/oled.h"
 #include "font8x8_basic.h"      // font from ssd1306 component, to draw single (inverted) characters
-#include "include/mqtt.h"
 #include "include/stm32_uart.h"
 #include "include/web.h"
 #include "include/knobs.h"
 
 #define TAG "Smart Guitar Effect"   // FIRMWARE TAG
-
-QueueHandle_t buffer1;
-
-typedef struct // Data structure representing STM32 UART samples acquired
-{
-    uint32_t timestamp;
-    int64_t sample;
-}stm32samples; 
-
-void debug_monitor(void *pvParameters)
-{
-    stm32samples sample;
-    while(1)
-    {
-        if(xQueueReceive(buffer1, (void*)&sample, pdMS_TO_TICKS(300)))
-        {
-            ESP_LOGI(TAG, "STM32 sample captured on: %lu ms with value: %lld", (unsigned long)sample.timestamp, (long long)sample.sample);
-        }
-    }
-}
 
 static void clock_init(void) // source: Github esp-idf/examples/protocols/sntp
 {
@@ -51,8 +28,6 @@ static void clock_init(void) // source: Github esp-idf/examples/protocols/sntp
     esp_sntp_config_t config = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
     esp_netif_sntp_init(&config);
 }
-
-#define BUTTON_NEXT GPIO_NUM_25          // momentary button to GND: next effect
 
 #define NO_INV "0000000000000000"
 
@@ -138,45 +113,6 @@ void ui_task(void *pvParameters)
     }
 }
 
-static void next_effect(void) // CLEAN -> DIST -> CHORUS -> ECHO -> REVERB -> CLEAN, like B1 on STM32
-{
-    const char *names[4] = {"fx_dist", "fx_chorus", "fx_echo", "fx_reverb"};
-    int fx[4] = {stm32_state.fx_dist, stm32_state.fx_chorus, stm32_state.fx_echo, stm32_state.fx_reverb};
-    int on = 0, cur = 0;            // cur: 0 = CLEAN, 1..4 = single effect
-    for (int i = 0; i < 4; i++) {
-        if (fx[i] == 1) { on++; cur = i + 1; }
-    }
-    if (on != 1) cur = 0;           // combination (e.g. from phone) -> next is DIST
-    int next = (cur + 1) % 5;
-    char line[STM32_LINE_MAX];
-    for (int i = 0; i < 4; i++) {
-        int want = (next == i + 1) ? 1 : 0;
-        if (fx[i] != want) {
-            snprintf(line, sizeof(line), "SET %s %d", names[i], want);
-            stm32_send(line);
-        }
-    }
-}
-
-void footswitch_task(void *pvParameters)
-{
-    gpio_config_t io_conf = {
-        .pin_bit_mask = 1ULL << BUTTON_NEXT,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE,
-    };
-    gpio_config(&io_conf);
-
-    uint8_t hist = 0;
-    while(1)
-    {
-        // every 10 ms, pressed = 0 V; released once then 4 x pressed = one press (~40 ms debounce)
-        hist = (uint8_t)((hist << 1) | (gpio_get_level(BUTTON_NEXT) == 0));
-        if ((hist & 0x1F) == 0x0F && stm32_online()) next_effect();
-        vTaskDelay(pdMS_TO_TICKS(10));
-    }
-}
-
 void app_main(void)
 {
     // OLED section
@@ -186,7 +122,7 @@ void app_main(void)
     // UART config section from void function
     ssd1306_display_text(&dev, 1, "UART: ...", 9, false);
     stm32_uart_init();
-    ssd1306_display_text(&dev, 1, "UART: OK", 8, false);
+    ssd1306_display_text(&dev, 1, "UART: OK ", 9, false);
 
     // NVS section
     ESP_LOGI(TAG, "Initializing NVS");
@@ -197,13 +133,13 @@ void app_main(void)
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    ssd1306_display_text(&dev, 2, "NVS:  OK", 8, false);
+    ssd1306_display_text(&dev, 2, "NVS:  OK ", 9, false);
 
     // WiFi section
-    ssd1306_display_text(&dev, 3, "WiFi:  ...", 9, false);
+    ssd1306_display_text(&dev, 3, "WiFi: ...", 9, false);
     ESP_LOGI(TAG, "WiFi MODE APSTA (home WiFi + pedal WiFi)");
     wifi_init_apsta();
-    ssd1306_display_text(&dev, 3, "WiFi: OK", 8, false);
+    ssd1306_display_text(&dev, 3, "WiFi: OK ", 9, false);
 
     // Clock section (SNTP over home WiFi)
     clock_init();
@@ -211,28 +147,18 @@ void app_main(void)
     // Web server section (panel: http://<ESP32 IP>/)
     ssd1306_display_text(&dev, 4, "WEB:  ...", 9, false);
     web_init();
-    ssd1306_display_text(&dev, 4, "WEB:  OK", 8, false);
-
-    // MQTT section
-    ssd1306_display_text(&dev, 3, "MQTT: ...", 10, false);
-    mqtt_init();
-    ssd1306_display_text(&dev, 3, "MQTT: OK", 10, false);
+    ssd1306_display_text(&dev, 4, "WEB:  OK ", 9, false);
 
     // POST time
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    vTaskDelay(pdMS_TO_TICKS(1500));
     ssd1306_clear_screen(&dev, false);
     // End POST time
 
-    // Queues section
-    buffer1 = xQueueCreate(2, sizeof(stm32samples));
-
     // Tasks section
     knobs_init();
-    xTaskCreate(debug_monitor, "debug_monitor", 2048, NULL, 5, NULL);
     xTaskCreate(stm32_rx_task, "stm32_rx_task", 4096, NULL, 6, NULL);
     xTaskCreate(stm32_ping_task, "stm32_ping_task", 3072, NULL, 5, NULL);
     xTaskCreate(ui_task, "ui_task", 4096, NULL, 5, NULL);
-    xTaskCreate(footswitch_task, "footswitch_task", 3072, NULL, 5, NULL);
     xTaskCreate(knobs_task, "knobs_task", 3072, NULL, 4, NULL);
 
     // Successfull initialization loop

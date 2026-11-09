@@ -1,5 +1,7 @@
 #include "include/web.h"
 #include "include/stm32_uart.h"
+#include "include/knobs.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include "esp_log.h"
@@ -45,15 +47,25 @@ static esp_err_t ws_handler(httpd_req_t *req) // source: Github esp-idf/examples
         if (ret == ESP_OK && ws_pkt.type == HTTPD_WS_TYPE_TEXT)
         {
             char *line = (char *)buf;
+            char knob[32];
             if (strncmp(line, "SET ", 4) == 0 || strncmp(line, "GET ", 4) == 0)
             {
                 if (stm32_send(line) < 0) ESP_LOGW(TAG, "Not sent: %s", line);
             }
-            if (strcmp(line, "GET ALL") == 0)   // new client, tell it the link state
+            if (strncmp(line, "KNOB ", 5) == 0)     // macro knob parameter, ESP32 only, all panels show the same
+            {
+                knobs_set_macro(line + 5);
+                snprintf(knob, sizeof(knob), "KNOB %s", knobs_get_macro());
+                web_broadcast(knob);
+            }
+            if (strcmp(line, "GET ALL") == 0)   // new client, tell it the link state and macro knob
             {
                 const char *link = stm32_online() ? "LINK up" : "LINK down";
                 httpd_ws_frame_t resp = { .type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)link, .len = strlen(link) };
                 httpd_ws_send_frame(req, &resp);
+                snprintf(knob, sizeof(knob), "KNOB %s", knobs_get_macro());
+                httpd_ws_frame_t knob_resp = { .type = HTTPD_WS_TYPE_TEXT, .payload = (uint8_t *)knob, .len = strlen(knob) };
+                httpd_ws_send_frame(req, &knob_resp);
             }
         }
         free(buf);
